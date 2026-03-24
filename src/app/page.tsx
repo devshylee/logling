@@ -8,39 +8,40 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Github, Upload, Wand2, Search, SlidersHorizontal, Loader2, FileText, Settings2, Copy, Check, Calendar, History, GitBranch } from 'lucide-react';
 import type { GitHubRepo, GitHubCommit } from '@/types';
 import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { cn } from '@/lib/utils';
 
 export default function Home() {
   const { data: session } = useSession();
   const [sourceType, setSourceType] = useState<'github' | 'manual'>('github');
   const [selectionMode, setSelectionMode] = useState<'commit' | 'range'>('commit');
-  
+
   const [repos, setRepos] = useState<GitHubRepo[]>([]);
   const [branches, setBranches] = useState<{ name: string }[]>([]);
   const [commits, setCommits] = useState<GitHubCommit[]>([]);
-  
+
   const [selectedRepo, setSelectedRepo] = useState<GitHubRepo | null>(null);
   const [selectedBranch, setSelectedBranch] = useState<string>('');
   const [selectedCommit, setSelectedCommit] = useState<GitHubCommit | null>(null);
-  
+
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
-  
+
   const [rawDiff, setRawDiff] = useState('');
   const [commitMessage, setCommitMessage] = useState('');
-  
+
   const [promptInstruction, setPromptInstruction] = useState('');
   const [temperature, setTemperature] = useState(0.7);
-  
+
   const [loadingRepos, setLoadingRepos] = useState(false);
   const [loadingBranches, setLoadingBranches] = useState(false);
   const [loadingCommits, setLoadingCommits] = useState(false);
   const [generating, setGenerating] = useState(false);
-  
+
   const [generatedMarkdown, setGeneratedMarkdown] = useState('');
   const [copied, setCopied] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
-  
+
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -70,9 +71,9 @@ export default function Home() {
     setBranches([]);
     setCommits([]);
     setSelectedCommit(null);
-    
+
     if (!repo) return;
-    
+
     setLoadingBranches(true);
     try {
       const accessToken = (session as any)?.accessToken;
@@ -82,9 +83,9 @@ export default function Home() {
       const data = await res.json();
       const branchList = Array.isArray(data) ? data : [];
       setBranches(branchList);
-      
-      // 기기본 브랜치(main/master)가 있으면 자동 선택
-      const defaultBranch = repo.default_branch || (branchList.find(b => b.name === 'main' || b.name === 'master')?.name) || branchList[0]?.name || '';
+
+      // 기본 브랜치(main/master)가 있으면 자동 선택
+      const defaultBranch = (repo as any).default_branch || (branchList.find(b => b.name === 'main' || b.name === 'master')?.name) || branchList[0]?.name || '';
       if (defaultBranch) {
         setSelectedBranch(defaultBranch);
         fetchCommits(repo.full_name, defaultBranch);
@@ -163,13 +164,13 @@ export default function Home() {
         promptInstruction,
         temperature
       };
-      
+
       const res = await fetch('/api/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body)
       });
-      
+
       const data = await res.json();
       if (res.ok && data.markdown) {
         setGeneratedMarkdown(data.markdown);
@@ -189,8 +190,22 @@ export default function Home() {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const isReady = sourceType === 'github' 
-    ? (selectedRepo && selectedBranch && (selectionMode === 'commit' ? selectedCommit : (startDate && endDate))) 
+  const downloadMarkdown = () => {
+    if (!generatedMarkdown) return;
+    const blob = new Blob([generatedMarkdown], { type: 'text/markdown' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    const filename = `blog_${new Date().toISOString().split('T')[0]}.md`;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const isReady = sourceType === 'github'
+    ? (selectedRepo && selectedBranch && (selectionMode === 'commit' ? selectedCommit : (startDate && endDate)))
     : (rawDiff.trim().length > 10);
 
   return (
@@ -201,7 +216,7 @@ export default function Home() {
         <TopBar />
 
         <div className="flex-1 overflow-y-auto p-8 flex flex-col xl:flex-row gap-8">
-          
+
           {/* Left Panel: Configuration */}
           <div className="w-full xl:w-[450px] flex-shrink-0 flex flex-col gap-6">
             <div>
@@ -241,7 +256,7 @@ export default function Home() {
                       {/* Step 1: Repo Select */}
                       <div>
                         <label className="text-[10px] font-bold text-outline uppercase tracking-widest mb-2 block">1. 저장소 선택</label>
-                        <select 
+                        <select
                           className="w-full bg-[#131313] border border-outline-variant/20 rounded-xl px-4 py-2.5 text-xs focus:ring-2 focus:ring-primary-container text-[#e5e2e1]"
                           onChange={handleRepoChange}
                           value={selectedRepo?.id.toString() || ''}
@@ -257,7 +272,7 @@ export default function Home() {
                           <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }}>
                             <label className="text-[10px] font-bold text-outline uppercase tracking-widest mb-2 block">2. 브랜치 선택</label>
                             <div className="relative">
-                              <select 
+                              <select
                                 className="w-full bg-[#131313] border border-outline-variant/20 rounded-xl pl-10 pr-4 py-2.5 text-xs focus:ring-2 focus:ring-primary-container text-[#e5e2e1] appearance-none"
                                 onChange={handleBranchChange}
                                 value={selectedBranch || ''}
@@ -297,7 +312,7 @@ export default function Home() {
 
                           {selectionMode === 'commit' ? (
                             <div>
-                              <select 
+                              <select
                                 className="w-full bg-[#131313] border border-outline-variant/20 rounded-xl px-4 py-2.5 text-xs focus:ring-2 focus:ring-primary-container text-[#e5e2e1]"
                                 disabled={loadingCommits}
                                 onChange={(e) => {
@@ -314,14 +329,14 @@ export default function Home() {
                           ) : (
                             <div className="flex flex-col gap-2">
                               <div className="flex gap-2">
-                                <input 
+                                <input
                                   type="date"
                                   className="flex-1 bg-[#131313] border border-outline-variant/20 rounded-xl px-3 py-2 text-xs focus:ring-2 focus:ring-primary-container text-[#e5e2e1]"
                                   value={startDate}
                                   onChange={(e) => setStartDate(e.target.value)}
                                 />
                                 <span className="text-outline flex items-center">~</span>
-                                <input 
+                                <input
                                   type="date"
                                   className="flex-1 bg-[#131313] border border-outline-variant/20 rounded-xl px-3 py-2 text-xs focus:ring-2 focus:ring-primary-container text-[#e5e2e1]"
                                   value={endDate}
@@ -346,7 +361,7 @@ export default function Home() {
                       </button>
                       <input type="file" ref={fileInputRef} className="hidden" onChange={handleFileUpload} />
                     </label>
-                    <textarea 
+                    <textarea
                       className="w-full h-32 bg-[#131313] border border-outline-variant/20 rounded-xl p-4 text-xs font-mono focus:ring-2 focus:ring-[#2ff801] text-tertiary placeholder:text-outline/40 resize-none"
                       placeholder="이곳에 git diff 내용을 붙여넣으세요..."
                       value={rawDiff}
@@ -355,7 +370,7 @@ export default function Home() {
                   </div>
                   <div>
                     <label className="text-[10px] font-bold text-outline uppercase tracking-widest mb-2 block">커밋 메시지 / 변경 배경 (선택)</label>
-                    <input 
+                    <input
                       className="w-full bg-[#131313] border border-outline-variant/20 rounded-xl px-4 py-2.5 text-xs focus:ring-2 focus:ring-[#2ff801] text-[#e5e2e1]"
                       placeholder="어떤 변경이었는지 짧게 설명해주세요"
                       value={commitMessage}
@@ -375,7 +390,7 @@ export default function Home() {
 
               <div>
                 <label className="text-[10px] font-bold text-outline uppercase tracking-widest mb-2 block">추가 지시사항</label>
-                <textarea 
+                <textarea
                   className="w-full h-20 bg-[#131313] border border-outline-variant/20 rounded-xl p-3 text-xs focus:ring-2 focus:ring-tertiary text-[#e5e2e1] placeholder:text-outline/40 resize-none"
                   placeholder="예: '임베디드 개발자 톤으로 작성해줘', '코드의 결함보다는 혁신적인 점을 강조해줘'"
                   value={promptInstruction}
@@ -387,14 +402,14 @@ export default function Home() {
                 <label className="text-[10px] font-bold text-outline uppercase tracking-widest mb-2 flex justify-between">
                   창의성 계수 <span>{temperature.toFixed(1)}</span>
                 </label>
-                <input 
+                <input
                   type="range" min="0" max="1" step="0.1"
                   value={temperature}
                   onChange={(e) => setTemperature(parseFloat(e.target.value))}
                   className="w-full accent-tertiary"
                 />
               </div>
-              
+
               <button
                 onClick={handleGenerate}
                 disabled={!isReady || generating}
@@ -407,20 +422,28 @@ export default function Home() {
 
           {/* Right Panel: Output Preview */}
           <div className="flex-1 bg-surface-high border border-outline-variant/10 rounded-3xl overflow-hidden flex flex-col shadow-2xl relative">
-            
+
             {/* Toolbar */}
             <div className="bg-[#1c1b1b] border-b border-outline-variant/10 px-6 py-4 flex justify-between items-center z-10">
               <div className="flex items-center gap-2 text-primary-container font-headline font-bold text-sm uppercase tracking-widest">
                 <FileText size={16} /> Preview
               </div>
-              
+
               {generatedMarkdown && (
-                <button 
-                  onClick={copyToClipboard}
-                  className="flex items-center gap-2 px-3 py-1.5 bg-surface-lowest hover:bg-surface-low border border-outline-variant/20 rounded-lg text-xs font-bold text-[#e5e2e1] transition-all"
-                >
-                  {copied ? <><Check size={14} className="text-[#2ff801]"/> 복사 완료!</> : <><Copy size={14} /> 복사</>}
-                </button>
+                <div className="flex gap-2">
+                  <button
+                    onClick={downloadMarkdown}
+                    className="flex items-center gap-2 px-3 py-1.5 bg-surface-lowest hover:bg-surface-low border border-outline-variant/20 rounded-lg text-xs font-bold text-[#e5e2e1] transition-all"
+                  >
+                    <Upload size={14} className="rotate-180" /> MD 다운로드
+                  </button>
+                  <button
+                    onClick={copyToClipboard}
+                    className="flex items-center gap-2 px-3 py-1.5 bg-surface-lowest hover:bg-surface-low border border-outline-variant/20 rounded-lg text-xs font-bold text-[#e5e2e1] transition-all"
+                  >
+                    {copied ? <><Check size={14} className="text-[#2ff801]" /> 복사 완료!</> : <><Copy size={14} /> 복사</>}
+                  </button>
+                </div>
               )}
             </div>
 
@@ -431,7 +454,7 @@ export default function Home() {
                   <Loader2 size={16} className="rotate-45" /> {errorMsg}
                 </div>
               )}
-              
+
               {generating ? (
                 <div className="absolute inset-0 flex flex-col items-center justify-center">
                   <motion.div
@@ -445,8 +468,8 @@ export default function Home() {
                   <p className="text-outline text-xs mt-3 tracking-widest uppercase">작업량이 많을 경우 최대 1분이 소요될 수 있습니다</p>
                 </div>
               ) : generatedMarkdown ? (
-                <div className="prose prose-invert prose-p:text-[#e5e2e1] prose-headings:text-[#e5e2e1] prose-a:text-primary-container prose-pre:bg-[#131313] prose-pre:border prose-pre:border-outline-variant/10 max-w-none">
-                  <ReactMarkdown>{generatedMarkdown}</ReactMarkdown>
+                <div className="prose prose-invert prose-p:text-[#e5e2e1] prose-headings:text-[#e5e2e1] prose-a:text-primary-container prose-pre:bg-[#131313] prose-pre:border prose-pre:border-outline-variant/10 prose-th:text-[#e5e2e1] prose-td:text-[#e5e2e1] prose-table:border-collapse prose-th:border prose-th:border-outline-variant/20 prose-td:border prose-td:border-outline-variant/20 prose-th:p-2 prose-td:p-2 max-w-none">
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{generatedMarkdown}</ReactMarkdown>
                 </div>
               ) : (
                 <div className="absolute inset-0 flex items-center justify-center opacity-20">
@@ -459,7 +482,7 @@ export default function Home() {
               )}
             </div>
           </div>
-          
+
         </div>
       </main>
     </div>
