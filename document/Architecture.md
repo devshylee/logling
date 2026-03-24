@@ -1,51 +1,80 @@
-## 🏗️ 1. 아키텍처: 이벤트 기반 서버리스 (Event-Driven)
+# Logling 시스템 아키텍처 (System Architecture)
 
-Next.js와 Supabase를 사용하기로 했으므로, 모든 로직을 동기(Sync)로 처리하면 AI 분석 대기 시간 때문에 UX가 망가집니다. 따라서 **비동기 처리**가 핵심입니다.
+Logling의 전체적인 데이터 흐름과 구성 요소 간의 연결 구조입니다.
 
-- **흐름:** 1. 사용자가 '분석' 클릭 → Next.js에서 Supabase에 `status: pending`으로 기록 (즉시 응답).
-2. Supabase의 **Edge Functions** 또는 **Webhook**이 분석 요청을 감지.
-3. 백그라운드에서 Gemini AI가 분석 수행 → 결과를 DB에 업데이트.
-4. 프론트엔드에서는 **Supabase Realtime**을 통해 "분석 완료!" 알림을 받고 화면 갱신.
-- **장점:** AI 분석이 10초 이상 걸려도 브라우저 타임아웃이 나지 않고, 사용자는 다른 페이지를 구경하며 기다릴 수 있습니다.
+```mermaid
+graph TD
+    subgraph Client ["프론트엔드 (Client Side)"]
+        UI["Next.js App (React + Tailwind)"]
+        AuthClient["NextAuth.js Client"]
+        Realtime["Supabase Realtime (구독)"]
+    end
+
+    subgraph Server ["백엔드 (Next.js API Server)"]
+        API["API Routes (/api/*)"]
+        NextAuth["NextAuth.js (Github OAuth)"]
+        AnalysisService["Analysis Provider (내부 로직)"]
+    end
+
+    subgraph Worker ["분석 처리 엔진 (Queue & AI)"]
+        Queue["BullMQ / Bull (비동기 큐)"]
+        Redis[("Redis (작업 대기열/캐시)")]
+        GeminiAPI["Google Gemini API (AI 분석)"]
+    end
+
+    subgraph Storage ["데이터 저장소 (Cloud Storage)"]
+        DB[(Supabase PostgreSQL)]
+        StorageAuth["Supabase Auth (세션 관리)"]
+    end
+
+    subgraph External ["외부 연동 API (External Services)"]
+        GitHubAPI["GitHub API (코드 수집 / Repo 조회)"]
+    end
+
+    %% 연결 관계 정의
+    UI <--> |HTTP / JSON| API
+    UI <--> |OAuth 2.0| NextAuth
+    NextAuth <--> GitHubAPI
+    
+    API <--> AnalysisService
+    AnalysisService <--> GitHubAPI
+    AnalysisService <--> GeminiAPI
+    
+    %% 비동기 분석 흐름
+    API -.-> |분석 작업 등록| Queue
+    Queue <--> Redis
+    Queue -.-> AnalysisService
+    
+    %% DB 연동 루프
+    AnalysisService <--> DB
+    API <--> DB
+    DB -.-> |상태 업데이트 알림| Realtime
+    Realtime -.-> |UI 업데이트| UI
+
+    %% 스타일링
+    style Redis fill:#f96,stroke:#333,stroke-width:2px
+    style DB fill:#3cba54,stroke:#333,stroke-width:2px
+    style GeminiAPI fill:#4285f4,stroke:#333,stroke-width:2px
+    style GitHubAPI fill:#000,stroke:#fff,stroke-width:1px,color:#fff
+```
 
 ---
 
-## 📁 2. 프로젝트 폴더 구조: 기능 중심 (Feature-based)
+## 🛰️ 주요 서비스 통신 흐름 설명 (Data Cycle)
 
-Next.js App Router를 쓸 때 `components`, `hooks` 폴더에 모든 걸 다 때려 넣으면 나중에 길을 잃습니다. **기능별로 도메인을 나누는 구조**를 추천합니다.
+### 1. 사용자 인증 및 저장소 동기화
+- 사용자가 GitHub 계정으로 로그인하면 **NextAuth**가 GitHub API로부터 액세스 토큰을 발급받습니다.
+- **Next.js BE**는 이 토큰을 사용하여 사용자의 저장소 목록을 조회하고, **Supabase DB**에 레포지토리 정보를 캐싱합니다.
 
-Plaintext
+### 2. 커밋 분석 (퀘스트 수락) 요청
+- 사용자가 특정 커밋에 대해 [분석] 버튼을 누르면, **Next.js BE**는 즉시 분석 ID를 생성하고 **Redis/BullMQ** 작업 대기열에 임무를 등록합니다.
+- 사용자는 화면에서 '분석 대기 중' 상태를 보며 대기합니다.
 
-`src/
-├── app/ (Routing & Layout)
-│   ├── dashboard/
-│   ├── repositories/
-│   ├── archive/
-│   └── settings/
-├── features/ (Domain Logic - 핵심!)
-│   ├── auth/          # 로그인, GitHub OAuth
-│   ├── analysis/      # Gemini API 연동, Diff 파싱 로직
-│   ├── leveling/      # 경험치 계산 공식, 레벨업 트리거
-│   └── blog-gen/      # 블로그 템플릿, PDF 생성 로직(추후)
-├── components/        # 공통 UI (Button, Input, Card 등)
-├── lib/               # 외부 라이브러리 설정 (Supabase Client, Gemini SDK)
-└── types/             # 공용 TypeScript 인터페이스`
+### 3. 비동기 AI 분석 프로세스
+- **Worker (Analysis Provider)**가 대기열에서 작업을 가져와 **GitHub API**로부터 코드 차이점(Git Diff)을 수집합니다.
+- 수집된 코드는 민감 정보 마스킹 처리를 거친 후 **Gemini AI API**로 전달되어 분석 결과(JSON)를 도출합니다.
+- 도출된 결과는 **Supabase DB**에 저장되며, 이때 사용자의 **경험치(XP)**가 함께 정산됩니다.
 
-- **장점:** `leveling` 로직을 수정하고 싶을 때 해당 폴더만 보면 됩니다. 다른 기능에 영향을 주지 않고 독립적으로 개발/테스트하기 좋습니다.
-
----
-
-## 🔄 3. 개발 방법론: TDD보다는 "에러 기반 반복(Error-driven Iteration)"
-
-AI 프로젝트는 결과값이 매번 미세하게 달라질 수 있어 완벽한 TDD(테스트 주도 개발)가 어렵습니다. 대신 다음 단계를 추천합니다.
-
-1. **MVP First:** 가장 핵심인 `Git Diff -> AI 요약` 기능만 먼저 구현합니다.
-2. **Prompt Versioning:** 프롬프트를 코드 안에 박아두지 말고, 별도의 설정 파일이나 DB에서 관리하세요. (버전 1.0, 1.1... 이렇게 관리해야 퀄리티 비교가 가능합니다.)
-3. **Observability:** AI가 이상한 답변을 내뱉거나 에러가 날 때를 대비해 로그를 꼼꼼히 남기세요. (Sentry나 Supabase Log 활용)
-
----
-
-## 🛠️ 4. 기술적 설계 포인트 (Senior's Secret)
-
-- **건강한 추상화:** Gemini API를 직접 호출하지 말고, `AnalysisProvider` 같은 인터페이스를 만드세요. 나중에 모델을 Claude나 DeepSeek으로 바꿀 때 코드 한 줄만 수정하면 됩니다.
-- **멱등성(Idempotency) 보장:** 동일한 커밋 SHA값에 대해 중복 분석이 일어나지 않도록 DB 제약 조건(`UNIQUE`)을 잘 설계하세요. 사용자의 토큰은 소중하니까요.
+### 4. 실시간 상태 확인 및 결과 도달
+- 분석이 완료되어 DB 레코드가 업데이트되면, **Supabase Realtime** 기능을 통해 프론트엔드로 즉시 알림이 전송됩니다.
+- 사용자 화면이 '완료' 상태로 실시간 업데이트되며, 분석된 데이터가 화면에 출력됩니다.
