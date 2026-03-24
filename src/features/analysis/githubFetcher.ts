@@ -97,6 +97,33 @@ export async function fetchCommitDiff(
 }
 
 /**
+ * Fetches the raw diff between two points (commits, branches, or tags) using the compare endpoint.
+ */
+export async function fetchCompareDiff(
+  accessToken: string,
+  repoFullName: string,
+  base: string,
+  head: string
+): Promise<string> {
+  const response = await fetch(
+    `${GITHUB_API_BASE}/repos/${repoFullName}/compare/${base}...${head}`,
+    {
+      headers: {
+        ...createGithubHeaders(accessToken),
+        Accept: 'application/vnd.github.diff',
+      },
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error(`GitHub API error fetching compare diff: ${response.status}`);
+  }
+
+  const rawDiff = await response.text();
+  return filterAndTruncateDiff(rawDiff);
+}
+
+/**
  * Removes excluded files from the diff and truncates if too long.
  */
 function filterAndTruncateDiff(rawDiff: string): string {
