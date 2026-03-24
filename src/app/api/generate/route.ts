@@ -10,7 +10,8 @@ export async function POST(req: Request) {
     const body = await req.json();
     const { 
       sourceType, 
-      repoFullName, 
+      repoFullName,
+      branch,
       commitSha, 
       rawDiff, 
       commitMessage, 
@@ -45,28 +46,27 @@ export async function POST(req: Request) {
         }
 
         // 해당 기간의 커밋 목록 조회하여 범위 특정 (since/until 사용)
+        // branch가 있다면 sha 파라미터로 브랜치 명시
+        const branchParam = branch ? `&sha=${branch}` : '';
         const commitsRes = await fetch(
-          `https://api.github.com/repos/${repoFullName}/commits?since=${start.toISOString()}&until=${end.toISOString()}&per_page=100`,
+          `https://api.github.com/repos/${repoFullName}/commits?since=${start.toISOString()}&until=${end.toISOString()}${branchParam}&per_page=100`,
           { headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/vnd.github+json' } }
         );
         const commits = await commitsRes.json();
 
         if (!Array.isArray(commits) || commits.length === 0) {
-          return Response.json({ error: '해당 기간 내에 커밋이 존재하지 않습니다.' }, { status: 404 });
+          return Response.json({ error: `해당 기간 내('${branch || '기본 브랜치'}')에 커밋이 존재하지 않습니다.` }, { status: 404 });
         }
 
         // 가장 오래된 커밋(마지막 요소)의 이전 커밋과 가장 최신 커밋 비교
         const headSha = commits[0].sha;
         const baseSha = commits[commits.length - 1].sha;
         
-        // baseSha의 parent를 찾아야 완벽하지만, 간결함을 위해 baseSha 이전 지점으로 compare 또는 순수하게 해당 커밋들 사이를 비교
-        // GitHub compare API는 base...head 형식을 사용함
         finalDiff = await fetchCompareDiff(accessToken, repoFullName, baseSha + '^', headSha).catch(async () => {
-          // baseSha^ 가 실패할 경우(첫 커밋 등) 그냥 base...head 비교
           return await fetchCompareDiff(accessToken, repoFullName, baseSha, headSha);
         });
         
-        contextMessage = `${startDate} ~ ${endDate} 기간의 작업 요약\n- 총 ${commits.length}개의 커밋 분석`;
+        contextMessage = `브랜치: ${branch || '기본'}\n기간: ${startDate} ~ ${endDate}\n작업 요약: 총 ${commits.length}개의 커밋 분석`;
       } else {
         return Response.json({ error: '커밋 해시 또는 기간 설정이 필요합니다.' }, { status: 400 });
       }

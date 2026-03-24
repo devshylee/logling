@@ -5,7 +5,7 @@ import { useSession } from 'next-auth/react';
 import Sidebar from '@/components/Sidebar';
 import TopBar from '@/components/TopBar';
 import { motion, AnimatePresence } from 'motion/react';
-import { Github, Upload, Wand2, Search, SlidersHorizontal, Loader2, FileText, Settings2, Copy, Check, Calendar, History } from 'lucide-react';
+import { Github, Upload, Wand2, Search, SlidersHorizontal, Loader2, FileText, Settings2, Copy, Check, Calendar, History, GitBranch } from 'lucide-react';
 import type { GitHubRepo, GitHubCommit } from '@/types';
 import ReactMarkdown from 'react-markdown';
 import { cn } from '@/lib/utils';
@@ -14,29 +14,33 @@ export default function Home() {
   const { data: session } = useSession();
   const [sourceType, setSourceType] = useState<'github' | 'manual'>('github');
   const [selectionMode, setSelectionMode] = useState<'commit' | 'range'>('commit');
-
+  
   const [repos, setRepos] = useState<GitHubRepo[]>([]);
+  const [branches, setBranches] = useState<{ name: string }[]>([]);
   const [commits, setCommits] = useState<GitHubCommit[]>([]);
+  
   const [selectedRepo, setSelectedRepo] = useState<GitHubRepo | null>(null);
+  const [selectedBranch, setSelectedBranch] = useState<string>('');
   const [selectedCommit, setSelectedCommit] = useState<GitHubCommit | null>(null);
-
+  
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
-
+  
   const [rawDiff, setRawDiff] = useState('');
   const [commitMessage, setCommitMessage] = useState('');
-
+  
   const [promptInstruction, setPromptInstruction] = useState('');
   const [temperature, setTemperature] = useState(0.7);
-
+  
   const [loadingRepos, setLoadingRepos] = useState(false);
+  const [loadingBranches, setLoadingBranches] = useState(false);
   const [loadingCommits, setLoadingCommits] = useState(false);
   const [generating, setGenerating] = useState(false);
-
+  
   const [generatedMarkdown, setGeneratedMarkdown] = useState('');
   const [copied, setCopied] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
-
+  
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -62,13 +66,50 @@ export default function Home() {
     const repoId = e.target.value;
     const repo = repos.find(r => r.id.toString() === repoId) || null;
     setSelectedRepo(repo);
+    setSelectedBranch('');
+    setBranches([]);
+    setCommits([]);
     setSelectedCommit(null);
+    
     if (!repo) return;
+    
+    setLoadingBranches(true);
+    try {
+      const accessToken = (session as any)?.accessToken;
+      const res = await fetch(`https://api.github.com/repos/${repo.full_name}/branches`, {
+        headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/vnd.github+json' }
+      });
+      const data = await res.json();
+      const branchList = Array.isArray(data) ? data : [];
+      setBranches(branchList);
+      
+      // 기기본 브랜치(main/master)가 있으면 자동 선택
+      const defaultBranch = repo.default_branch || (branchList.find(b => b.name === 'main' || b.name === 'master')?.name) || branchList[0]?.name || '';
+      if (defaultBranch) {
+        setSelectedBranch(defaultBranch);
+        fetchCommits(repo.full_name, defaultBranch);
+      }
+    } catch {
+      setBranches([]);
+    } finally {
+      setLoadingBranches(false);
+    }
+  };
 
+  const handleBranchChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const branchName = e.target.value;
+    setSelectedBranch(branchName);
+    setSelectedCommit(null);
+    if (selectedRepo && branchName) {
+      fetchCommits(selectedRepo.full_name, branchName);
+    }
+  };
+
+  const fetchCommits = async (repoFullName: string, branchName: string) => {
     setLoadingCommits(true);
     try {
       const accessToken = (session as any)?.accessToken;
-      const res = await fetch(`https://api.github.com/repos/${repo.full_name}/commits?per_page=20`, {
+      const res = await fetch(`https://api.github.com/repos/${repoFullName}/commits?sha=${branchName}&per_page=30`, {
         headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/vnd.github+json' }
       });
       const data = await res.json();
@@ -113,6 +154,7 @@ export default function Home() {
       const body = {
         sourceType,
         repoFullName: selectedRepo?.full_name,
+        branch: selectedBranch,
         commitSha: selectionMode === 'commit' ? selectedCommit?.sha : undefined,
         startDate: selectionMode === 'range' ? startDate : undefined,
         endDate: selectionMode === 'range' ? endDate : undefined,
@@ -121,13 +163,13 @@ export default function Home() {
         promptInstruction,
         temperature
       };
-
+      
       const res = await fetch('/api/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body)
       });
-
+      
       const data = await res.json();
       if (res.ok && data.markdown) {
         setGeneratedMarkdown(data.markdown);
@@ -147,8 +189,8 @@ export default function Home() {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const isReady = sourceType === 'github'
-    ? (selectedRepo && (selectionMode === 'commit' ? selectedCommit : (startDate && endDate)))
+  const isReady = sourceType === 'github' 
+    ? (selectedRepo && selectedBranch && (selectionMode === 'commit' ? selectedCommit : (startDate && endDate))) 
     : (rawDiff.trim().length > 10);
 
   return (
@@ -159,7 +201,7 @@ export default function Home() {
         <TopBar />
 
         <div className="flex-1 overflow-y-auto p-8 flex flex-col xl:flex-row gap-8">
-
+          
           {/* Left Panel: Configuration */}
           <div className="w-full xl:w-[450px] flex-shrink-0 flex flex-col gap-6">
             <div>
@@ -173,13 +215,13 @@ export default function Home() {
             <div className="bg-surface-high p-1 rounded-xl flex gap-1 border border-outline-variant/10">
               <button
                 onClick={() => setSourceType('github')}
-                className={cn('flex-1 py-2 rounded-lg text-xs font-bold flex items-center justify-center gap-2 transition-all', sourceType === 'github' ? 'bg-primary-container text-white shadow-lg' : 'text-outline hover:text-[#e5e2e1]')}
+                className={cn('flex-1 py-1.5 rounded-lg text-[11px] font-bold flex items-center justify-center gap-2 transition-all', sourceType === 'github' ? 'bg-primary-container text-white shadow-lg' : 'text-outline hover:text-[#e5e2e1]')}
               >
                 <Github size={14} /> GitHub 연동
               </button>
               <button
                 onClick={() => setSourceType('manual')}
-                className={cn('flex-1 py-2 rounded-lg text-xs font-bold flex items-center justify-center gap-2 transition-all', sourceType === 'manual' ? 'bg-[#2ff801] text-[#0a0a0a] shadow-lg' : 'text-outline hover:text-[#e5e2e1]')}
+                className={cn('flex-1 py-1.5 rounded-lg text-[11px] font-bold flex items-center justify-center gap-2 transition-all', sourceType === 'manual' ? 'bg-[#2ff801] text-[#0a0a0a] shadow-lg' : 'text-outline hover:text-[#e5e2e1]')}
               >
                 <FileText size={14} /> 직접 입력
               </button>
@@ -196,10 +238,11 @@ export default function Home() {
                     </div>
                   ) : (
                     <>
+                      {/* Step 1: Repo Select */}
                       <div>
                         <label className="text-[10px] font-bold text-outline uppercase tracking-widest mb-2 block">1. 저장소 선택</label>
-                        <select
-                          className="w-full bg-[#131313] border border-outline-variant/20 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary-container text-[#e5e2e1]"
+                        <select 
+                          className="w-full bg-[#131313] border border-outline-variant/20 rounded-xl px-4 py-2.5 text-xs focus:ring-2 focus:ring-primary-container text-[#e5e2e1]"
                           onChange={handleRepoChange}
                           value={selectedRepo?.id.toString() || ''}
                         >
@@ -208,56 +251,88 @@ export default function Home() {
                         </select>
                       </div>
 
-                      <div className="pt-2">
-                        <label className="text-[10px] font-bold text-outline uppercase tracking-widest mb-2 block">2. 분석 범위 설정</label>
-                        <div className="bg-[#0a0a0a] p-1 rounded-lg flex gap-1 border border-outline-variant/5 mb-3">
-                          <button
-                            onClick={() => setSelectionMode('commit')}
-                            className={cn('flex-1 py-1.5 rounded-md text-[10px] font-bold flex items-center justify-center gap-1 transition-all', selectionMode === 'commit' ? 'bg-surface-highest text-white' : 'text-outline')}
-                          >
-                            <History size={12} /> 단일 커밋
-                          </button>
-                          <button
-                            onClick={() => setSelectionMode('range')}
-                            className={cn('flex-1 py-1.5 rounded-md text-[10px] font-bold flex items-center justify-center gap-1 transition-all', selectionMode === 'range' ? 'bg-surface-highest text-white' : 'text-outline')}
-                          >
-                            <Calendar size={12} /> 기간 설정
-                          </button>
-                        </div>
-
-                        {selectionMode === 'commit' ? (
-                          <select
-                            className="w-full bg-[#131313] border border-outline-variant/20 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary-container text-[#e5e2e1]"
-                            disabled={!selectedRepo || loadingCommits}
-                            onChange={(e) => {
-                              const c = commits.find(c => c.sha === e.target.value);
-                              setSelectedCommit(c || null);
-                            }}
-                            value={selectedCommit?.sha || ''}
-                          >
-                            <option value="">분석할 커밋을 선택하세요</option>
-                            {commits.map(c => <option key={c.sha} value={c.sha}>{c.commit.message.split('\n')[0]} ({c.sha.slice(0, 7)})</option>)}
-                          </select>
-                        ) : (
-                          <div className="flex gap-2">
-                            <input
-                              type="date"
-                              className="flex-1 bg-[#131313] border border-outline-variant/20 rounded-xl px-3 py-2 text-xs focus:ring-2 focus:ring-primary-container text-[#e5e2e1]"
-                              value={startDate}
-                              onChange={(e) => setStartDate(e.target.value)}
-                            />
-                            <span className="text-outline flex items-center">~</span>
-                            <input
-                              type="date"
-                              className="flex-1 bg-[#131313] border border-outline-variant/20 rounded-xl px-3 py-2 text-xs focus:ring-2 focus:ring-primary-container text-[#e5e2e1]"
-                              value={endDate}
-                              onChange={(e) => setEndDate(e.target.value)}
-                            />
-                          </div>
+                      {/* Step 2: Branch Select */}
+                      <AnimatePresence>
+                        {selectedRepo && (
+                          <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }}>
+                            <label className="text-[10px] font-bold text-outline uppercase tracking-widest mb-2 block">2. 브랜치 선택</label>
+                            <div className="relative">
+                              <select 
+                                className="w-full bg-[#131313] border border-outline-variant/20 rounded-xl pl-10 pr-4 py-2.5 text-xs focus:ring-2 focus:ring-primary-container text-[#e5e2e1] appearance-none"
+                                onChange={handleBranchChange}
+                                value={selectedBranch || ''}
+                                disabled={loadingBranches}
+                              >
+                                <option value="">브랜치를 선택하세요</option>
+                                {branches.map(b => <option key={b.name} value={b.name}>{b.name}</option>)}
+                              </select>
+                              <div className="absolute left-3 top-1/2 -translate-y-1/2 text-outline">
+                                {loadingBranches ? <Loader2 size={14} className="animate-spin" /> : <GitBranch size={14} />}
+                              </div>
+                            </div>
+                          </motion.div>
                         )}
-                        {selectionMode === 'range' && <p className="text-[10px] text-outline mt-2 text-center">※ 최대 7일 이내의 변경 사항만 분석 가능합니다.</p>}
-                        {loadingCommits && <p className="text-xs text-primary-container mt-2 flex items-center gap-1"><Loader2 size={12} className="animate-spin" /> 목록 로드 중...</p>}
-                      </div>
+                      </AnimatePresence>
+
+                      {/* Step 3: Mode & Detail Select */}
+                      {selectedBranch && (
+                        <div className="pt-2 flex flex-col gap-4">
+                          <div>
+                            <label className="text-[10px] font-bold text-outline uppercase tracking-widest mb-2 block">3. 분석 범위 설정</label>
+                            <div className="bg-[#0a0a0a] p-1 rounded-lg flex gap-1 border border-outline-variant/5">
+                              <button
+                                onClick={() => setSelectionMode('commit')}
+                                className={cn('flex-1 py-1.5 rounded-md text-[10px] font-bold flex items-center justify-center gap-1 transition-all', selectionMode === 'commit' ? 'bg-surface-highest text-white' : 'text-outline')}
+                              >
+                                <History size={12} /> 단일 커밋
+                              </button>
+                              <button
+                                onClick={() => setSelectionMode('range')}
+                                className={cn('flex-1 py-1.5 rounded-md text-[10px] font-bold flex items-center justify-center gap-1 transition-all', selectionMode === 'range' ? 'bg-surface-highest text-white' : 'text-outline')}
+                              >
+                                <Calendar size={12} /> 기간 설정
+                              </button>
+                            </div>
+                          </div>
+
+                          {selectionMode === 'commit' ? (
+                            <div>
+                              <select 
+                                className="w-full bg-[#131313] border border-outline-variant/20 rounded-xl px-4 py-2.5 text-xs focus:ring-2 focus:ring-primary-container text-[#e5e2e1]"
+                                disabled={loadingCommits}
+                                onChange={(e) => {
+                                  const c = commits.find(c => c.sha === e.target.value);
+                                  setSelectedCommit(c || null);
+                                }}
+                                value={selectedCommit?.sha || ''}
+                              >
+                                <option value="">분석할 커밋을 선택하세요</option>
+                                {commits.map(c => <option key={c.sha} value={c.sha}>{c.commit.message.split('\n')[0]} ({c.sha.slice(0, 7)})</option>)}
+                              </select>
+                              {loadingCommits && <p className="text-[10px] text-primary-container mt-1 ml-1 flex items-center gap-1"><Loader2 size={10} className="animate-spin" /> 커밋 목록 로딩 중...</p>}
+                            </div>
+                          ) : (
+                            <div className="flex flex-col gap-2">
+                              <div className="flex gap-2">
+                                <input 
+                                  type="date"
+                                  className="flex-1 bg-[#131313] border border-outline-variant/20 rounded-xl px-3 py-2 text-xs focus:ring-2 focus:ring-primary-container text-[#e5e2e1]"
+                                  value={startDate}
+                                  onChange={(e) => setStartDate(e.target.value)}
+                                />
+                                <span className="text-outline flex items-center">~</span>
+                                <input 
+                                  type="date"
+                                  className="flex-1 bg-[#131313] border border-outline-variant/20 rounded-xl px-3 py-2 text-xs focus:ring-2 focus:ring-primary-container text-[#e5e2e1]"
+                                  value={endDate}
+                                  onChange={(e) => setEndDate(e.target.value)}
+                                />
+                              </div>
+                              <p className="text-[10px] text-outline text-center">※ 최대 7일 이내의 변경 사항 분석 권장</p>
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </>
                   )}
                 </>
@@ -271,7 +346,7 @@ export default function Home() {
                       </button>
                       <input type="file" ref={fileInputRef} className="hidden" onChange={handleFileUpload} />
                     </label>
-                    <textarea
+                    <textarea 
                       className="w-full h-32 bg-[#131313] border border-outline-variant/20 rounded-xl p-4 text-xs font-mono focus:ring-2 focus:ring-[#2ff801] text-tertiary placeholder:text-outline/40 resize-none"
                       placeholder="이곳에 git diff 내용을 붙여넣으세요..."
                       value={rawDiff}
@@ -280,8 +355,8 @@ export default function Home() {
                   </div>
                   <div>
                     <label className="text-[10px] font-bold text-outline uppercase tracking-widest mb-2 block">커밋 메시지 / 변경 배경 (선택)</label>
-                    <input
-                      className="w-full bg-[#131313] border border-outline-variant/20 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-[#2ff801] text-[#e5e2e1]"
+                    <input 
+                      className="w-full bg-[#131313] border border-outline-variant/20 rounded-xl px-4 py-2.5 text-xs focus:ring-2 focus:ring-[#2ff801] text-[#e5e2e1]"
                       placeholder="어떤 변경이었는지 짧게 설명해주세요"
                       value={commitMessage}
                       onChange={(e) => setCommitMessage(e.target.value)}
@@ -292,7 +367,7 @@ export default function Home() {
             </div>
 
             {/* AI Customization Panel */}
-            <div className="bg-surface-low rounded-2xl p-5 border border-outline-variant/10 flex flex-col gap-5">
+            <div className="bg-surface-low rounded-2xl p-5 border border-outline-variant/10 flex flex-col gap-5 mt-auto">
               <div className="flex items-center gap-2 mb-1">
                 <Settings2 size={16} className="text-tertiary" />
                 <h3 className="font-headline font-bold text-sm text-[#e5e2e1]">스타일 및 커스텀 프롬프트</h3>
@@ -300,7 +375,7 @@ export default function Home() {
 
               <div>
                 <label className="text-[10px] font-bold text-outline uppercase tracking-widest mb-2 block">추가 지시사항</label>
-                <textarea
+                <textarea 
                   className="w-full h-20 bg-[#131313] border border-outline-variant/20 rounded-xl p-3 text-xs focus:ring-2 focus:ring-tertiary text-[#e5e2e1] placeholder:text-outline/40 resize-none"
                   placeholder="예: '임베디드 개발자 톤으로 작성해줘', '코드의 결함보다는 혁신적인 점을 강조해줘'"
                   value={promptInstruction}
@@ -312,14 +387,14 @@ export default function Home() {
                 <label className="text-[10px] font-bold text-outline uppercase tracking-widest mb-2 flex justify-between">
                   창의성 계수 <span>{temperature.toFixed(1)}</span>
                 </label>
-                <input
+                <input 
                   type="range" min="0" max="1" step="0.1"
                   value={temperature}
                   onChange={(e) => setTemperature(parseFloat(e.target.value))}
                   className="w-full accent-tertiary"
                 />
               </div>
-
+              
               <button
                 onClick={handleGenerate}
                 disabled={!isReady || generating}
@@ -332,19 +407,19 @@ export default function Home() {
 
           {/* Right Panel: Output Preview */}
           <div className="flex-1 bg-surface-high border border-outline-variant/10 rounded-3xl overflow-hidden flex flex-col shadow-2xl relative">
-
+            
             {/* Toolbar */}
             <div className="bg-[#1c1b1b] border-b border-outline-variant/10 px-6 py-4 flex justify-between items-center z-10">
               <div className="flex items-center gap-2 text-primary-container font-headline font-bold text-sm uppercase tracking-widest">
                 <FileText size={16} /> Preview
               </div>
-
+              
               {generatedMarkdown && (
-                <button
+                <button 
                   onClick={copyToClipboard}
                   className="flex items-center gap-2 px-3 py-1.5 bg-surface-lowest hover:bg-surface-low border border-outline-variant/20 rounded-lg text-xs font-bold text-[#e5e2e1] transition-all"
                 >
-                  {copied ? <><Check size={14} className="text-[#2ff801]" /> 복사 완료!</> : <><Copy size={14} /> 복사</>}
+                  {copied ? <><Check size={14} className="text-[#2ff801]"/> 복사 완료!</> : <><Copy size={14} /> 복사</>}
                 </button>
               )}
             </div>
@@ -356,7 +431,7 @@ export default function Home() {
                   <Loader2 size={16} className="rotate-45" /> {errorMsg}
                 </div>
               )}
-
+              
               {generating ? (
                 <div className="absolute inset-0 flex flex-col items-center justify-center">
                   <motion.div
@@ -384,7 +459,7 @@ export default function Home() {
               )}
             </div>
           </div>
-
+          
         </div>
       </main>
     </div>

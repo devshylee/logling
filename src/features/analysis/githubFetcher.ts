@@ -70,6 +70,25 @@ export async function fetchRepoCommits(
 }
 
 /**
+ * Fetches branches for a specific repository.
+ */
+export async function fetchRepoBranches(
+  accessToken: string,
+  repoFullName: string
+): Promise<{ name: string }[]> {
+  const response = await fetch(
+    `${GITHUB_API_BASE}/repos/${repoFullName}/branches?per_page=100`,
+    { headers: createGithubHeaders(accessToken) }
+  );
+
+  if (!response.ok) {
+    throw new Error(`GitHub API error fetching branches: ${response.status}`);
+  }
+
+  return await response.json();
+}
+
+/**
  * Fetches the raw diff for a specific commit SHA.
  * Filters out non-code files and truncates if too large.
  */
