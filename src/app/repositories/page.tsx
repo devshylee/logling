@@ -135,18 +135,18 @@ export default function RepositoriesPage() {
                   </div>
                 </motion.div>
               </div>
-              <h1 className="font-headline text-5xl font-black tracking-tighter text-[#e5e2e1] mb-4">No repositories connected yet!</h1>
-              <p className="text-outline text-xl mb-8">Let&apos;s find your code on GitHub. Your Logling Unit is ready.</p>
+              <h1 className="font-headline text-5xl font-black tracking-tighter text-[#e5e2e1] mb-4">연결된 저장소가 없어요!</h1>
+              <p className="text-outline text-xl mb-8">GitHub에서 프로젝트를 불러와주세요. 로그링 요원이 분석 준비를 마쳤습니다.</p>
               <button
                 onClick={fetchRepos}
                 className="px-10 py-5 bg-primary-container text-white rounded-2xl font-headline text-lg font-bold uppercase tracking-tight flex items-center gap-3 hover:scale-105 active:scale-95 transition-all shadow-[0_20px_40px_rgba(0,112,243,0.3)]"
               >
                 <Github />
-                Load GitHub Repositories
+                GitHub 저장소 불러오기
               </button>
               <div className="flex items-center gap-2 mt-4">
                 <ShieldCheck size={14} className="text-[#79ff5b]" />
-                <span className="text-[10px] font-mono text-[#79ff5b] uppercase tracking-widest">Read-only Access Guaranteed</span>
+                <span className="text-[10px] font-mono text-[#79ff5b] uppercase tracking-widest">읽기 전용 보안 액세스 활성화됨</span>
               </div>
             </div>
           </div>
@@ -164,8 +164,8 @@ export default function RepositoriesPage() {
           {/* Header */}
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="font-headline text-4xl font-black tracking-tighter text-[#e5e2e1]">Repositories</h1>
-              <p className="text-outline mt-1">{repos.length} repositories synced from GitHub</p>
+              <h1 className="font-headline text-4xl font-black tracking-tighter text-[#e5e2e1]">내 저장소</h1>
+              <p className="text-outline mt-1">총 {repos.length}개의 저장소가 동기화되었습니다.</p>
             </div>
             <button
               onClick={fetchRepos}
@@ -173,7 +173,7 @@ export default function RepositoriesPage() {
               className="flex items-center gap-2 px-4 py-2 bg-surface-high border border-outline-variant/20 rounded-lg text-outline hover:text-[#e5e2e1] transition-colors text-sm font-bold disabled:opacity-50"
             >
               <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
-              Sync
+              새로고침
             </button>
           </div>
 
@@ -182,7 +182,7 @@ export default function RepositoriesPage() {
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-outline" size={18} />
             <input
               className="w-full bg-surface-low border border-outline-variant/20 rounded-xl pl-12 pr-4 py-3 text-sm focus:ring-2 focus:ring-primary-container transition-all placeholder:text-outline/50"
-              placeholder="Search by name or language..."
+              placeholder="프로젝트명 또는 언어로 검색..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
@@ -253,9 +253,9 @@ export default function RepositoriesPage() {
                               className="flex items-center gap-2 px-4 py-2 bg-primary-container text-white text-xs font-bold rounded-lg hover:shadow-[0_0_15px_rgba(0,112,243,0.3)] transition-all disabled:opacity-50 whitespace-nowrap"
                             >
                               {analyzingRepo === commit.sha ? (
-                                <><Loader2 size={12} className="animate-spin" /> Queuing...</>
+                                <><Loader2 size={12} className="animate-spin" /> 임무 대기 중...</>
                               ) : (
-                                <><Zap size={12} /> Analyze</>
+                                <><Zap size={12} /> 분석하기</>
                               )}
                             </button>
                           </div>

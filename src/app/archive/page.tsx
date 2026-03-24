@@ -96,14 +96,14 @@ export default function ArchivePage() {
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-outline" size={18} />
               <input
                 className="w-full bg-[#131313] border-none rounded-xl pl-12 pr-4 py-3 text-sm focus:ring-2 focus:ring-primary-container transition-all placeholder:text-outline/50"
-                placeholder="Search achievements, commits, or repos..."
+                placeholder="업적 제목, 커밋 메시지 또는 저장소 검색..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
               />
             </div>
             <div className="flex items-center gap-2 px-3 py-2 bg-surface-highest rounded-xl text-outline text-xs font-mono">
               <Filter size={14} />
-              <span>{filtered.length} results</span>
+              <span>{filtered.length}개의 기록 발견</span>
             </div>
           </section>
 

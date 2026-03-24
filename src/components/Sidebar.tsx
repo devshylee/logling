@@ -17,10 +17,10 @@ import type { UserProfile } from '@/types';
 import { getLevelFromXP } from '@/types';
 
 const navItems = [
-  { icon: Home, label: 'Home', href: '/', id: 'home' },
-  { icon: Database, label: 'Repositories', href: '/repositories', id: 'repos' },
-  { icon: Archive, label: 'Archive', href: '/archive', id: 'archive' },
-  { icon: Settings, label: 'Settings', href: '/settings', id: 'settings' },
+  { icon: Home, label: '홈', href: '/', id: 'home' },
+  { icon: Database, label: '내 저장소', href: '/repositories', id: 'repos' },
+  { icon: Archive, label: '분석 도감', href: '/archive', id: 'archive' },
+  { icon: Settings, label: '기지 설정', href: '/settings', id: 'settings' },
 ];
 
 export default function Sidebar({ activeId, profile }: { activeId: string; profile?: UserProfile | null }) {
@@ -35,9 +35,9 @@ export default function Sidebar({ activeId, profile }: { activeId: string; profi
             <Terminal size={20} className="text-white fill-current" />
           </div>
           <div>
-            <h2 className="text-[#e5e2e1] font-bold text-lg leading-none">Logling Unit</h2>
+            <h2 className="text-[#e5e2e1] font-bold text-lg leading-none">로그링 유닛</h2>
             <p className="text-outline text-[10px] uppercase tracking-widest mt-1">
-              {profile ? `Level ${level} ${nickname}` : 'Loading...'}
+              {profile ? `레벨 ${level} ${nickname}` : '데이터 로드 중...'}
             </p>
           </div>
         </div>
@@ -68,7 +68,7 @@ export default function Sidebar({ activeId, profile }: { activeId: string; profi
           className="w-full mt-8 py-3 bg-primary-container text-white rounded-xl font-bold uppercase tracking-tighter hover:shadow-[0_0_15px_rgba(0,112,243,0.4)] transition-all flex items-center justify-center gap-2 active:scale-95"
         >
           <PlusCircle size={16} />
-          New Analysis
+          새로운 분석 시작
         </a>
       </div>
 

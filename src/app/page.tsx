@@ -21,10 +21,10 @@ function ImpactColor(score: number) {
 
 function StatusBadge({ status }: { status: Analysis['status'] }) {
   const map = {
-    pending: <span className="flex items-center gap-1 text-outline text-[10px] font-mono"><Loader2 size={12} className="animate-spin" /> Pending</span>,
-    processing: <span className="flex items-center gap-1 text-primary-container text-[10px] font-mono"><Loader2 size={12} className="animate-spin" /> Analyzing...</span>,
-    completed: <span className="flex items-center gap-1 text-[#2ff801] text-[10px] font-mono"><CheckCircle2 size={12} /> Done</span>,
-    failed: <span className="flex items-center gap-1 text-red-400 text-[10px] font-mono"><AlertCircle size={12} /> Failed</span>,
+    pending: <span className="flex items-center gap-1 text-outline text-[10px] font-mono"><Loader2 size={12} className="animate-spin" /> 분석 대기 중</span>,
+    processing: <span className="flex items-center gap-1 text-primary-container text-[10px] font-mono"><Loader2 size={12} className="animate-spin" /> 분석 진행 중...</span>,
+    completed: <span className="flex items-center gap-1 text-[#2ff801] text-[10px] font-mono"><CheckCircle2 size={12} /> 분석 완료</span>,
+    failed: <span className="flex items-center gap-1 text-red-400 text-[10px] font-mono"><AlertCircle size={12} /> 분석 실패</span>,
   };
   return map[status] ?? null;
 }
@@ -63,7 +63,6 @@ export default function DashboardPage() {
     loadData();
   }, [loadData]);
 
-  // Supabase Realtime: watch for analysis status updates
   useEffect(() => {
     if (!userId) return;
     const channel = supabase
@@ -75,7 +74,6 @@ export default function DashboardPage() {
           setAnalyses((prev) =>
             prev.map((a) => (a.id === payload.new.id ? { ...a, ...(payload.new as Analysis) } : a))
           );
-          // Refresh profile to get updated XP
           if (payload.new.status === 'completed') {
             supabase.from('user_profiles').select('*').eq('id', userId).single().then(({ data }) => {
               if (data) setProfile(data as UserProfile);
@@ -109,7 +107,6 @@ export default function DashboardPage() {
         <TopBar />
 
         <div className="p-10 max-w-7xl mx-auto space-y-10">
-          {/* Level Bar Section */}
           <motion.section
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -120,10 +117,10 @@ export default function DashboardPage() {
               <div className="flex-1">
                 <div className="flex items-baseline gap-4 mb-4">
                   <h1 className="font-headline text-5xl font-black text-[#e5e2e1] tracking-tighter">
-                    Level {currentLevel}
+                    레벨 {currentLevel}
                   </h1>
                   <span className="font-headline text-xs font-bold text-[#79ff5b] uppercase tracking-[0.2em]">
-                    {profile?.nickname ?? 'Developer'}
+                    {profile?.nickname ?? '로그링 요원'}
                   </span>
                 </div>
 
@@ -140,23 +137,23 @@ export default function DashboardPage() {
 
                 <div className="flex justify-between mt-3">
                   <span className="font-mono text-[10px] text-outline uppercase tracking-widest">
-                    {currentXP.toLocaleString()} XP / {XP_PER_LEVEL.toLocaleString()} XP
+                    경험치: {currentXP.toLocaleString()} XP / {XP_PER_LEVEL.toLocaleString()} XP
                   </span>
                   <span className="font-mono text-[10px] text-[#2ff801] font-bold uppercase tracking-widest">
-                    Next Level: {currentLevel + 1}
+                    다음 레벨: {currentLevel + 1}
                   </span>
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-4 md:w-64">
                 <div className="bg-surface-high p-4 rounded-xl border border-outline-variant/10">
-                  <p className="text-[10px] text-outline uppercase font-headline tracking-widest mb-1">Total XP</p>
+                  <p className="text-[10px] text-outline uppercase font-headline tracking-widest mb-1">누적 경험치</p>
                   <p className="font-mono text-lg font-bold text-[#e5e2e1]">{(profile?.xp ?? 0).toLocaleString()}</p>
                 </div>
                 <div className="bg-surface-high p-4 rounded-xl border border-outline-variant/10">
-                  <p className="text-[10px] text-outline uppercase font-headline tracking-widest mb-1">Analyzing</p>
+                  <p className="text-[10px] text-outline uppercase font-headline tracking-widest mb-1">진행 중인 퀘스트</p>
                   <p className={cn('font-mono text-lg font-bold', pendingCount > 0 ? 'text-primary-container' : 'text-outline')}>
-                    {pendingCount > 0 ? `${pendingCount} jobs` : 'Idle'}
+                    {pendingCount > 0 ? `${pendingCount}개 분석 중` : '대기 중'}
                   </p>
                 </div>
               </div>
@@ -164,7 +161,6 @@ export default function DashboardPage() {
           </motion.section>
 
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-            {/* Mascot Interaction */}
             <div className="lg:col-span-7 flex flex-col items-center justify-center min-h-[400px] relative">
               <motion.div
                 initial={{ scale: 0.9, opacity: 0 }}
@@ -176,8 +172,8 @@ export default function DashboardPage() {
                   {pendingCount > 0
                     ? `🔍 ${pendingCount}개의 커밋을 분석 중이에요!`
                     : analyses.length === 0
-                    ? '저장소를 연결하고 첫 번째 커밋을 분석해봐요! 🚀'
-                    : `총 ${analyses.length}개의 분석 완료! 오늘도 멋진 코드네요 💪`}
+                      ? '저장소를 연결하고 첫 번째 커밋을 분석해봐요! 🚀'
+                      : `총 ${analyses.length}개의 분석 완료! 오늘도 멋진 코드네요 💪`}
                 </p>
                 <div className="absolute -bottom-3 left-1/2 -translate-x-1/2 w-6 h-6 bg-surface-high/60 border-r border-b border-outline-variant/20 rotate-45" />
               </motion.div>
@@ -200,12 +196,11 @@ export default function DashboardPage() {
               </motion.div>
             </div>
 
-            {/* Recent Analysis */}
             <div className="lg:col-span-5 space-y-6">
               <div className="flex items-center justify-between mb-2 px-2">
-                <h2 className="font-headline font-bold text-xl tracking-tight">Recent Analysis</h2>
+                <h2 className="font-headline font-bold text-xl tracking-tight">최근 분석 내역</h2>
                 <a href="/archive" className="text-xs font-headline font-bold uppercase tracking-widest text-outline hover:text-[#e5e2e1] transition-colors">
-                  View All
+                  전체 보기
                 </a>
               </div>
 
@@ -233,17 +228,17 @@ export default function DashboardPage() {
                           </div>
                           <div>
                             <h4 className="text-sm font-bold text-[#e5e2e1] line-clamp-1">
-                              {item.ai_result?.title ?? item.commit_message ?? 'Analyzing...'}
+                              {item.ai_result?.title ?? item.commit_message ?? '분석 중...'}
                             </h4>
                             <p className="font-mono text-[10px] text-outline tracking-tighter">
-                              {(item.repository as any)?.full_name ?? 'unknown'} • {new Date(item.created_at).toLocaleDateString()}
+                              {(item.repository as any)?.full_name ?? '알 수 없는 저장소'} • {new Date(item.created_at).toLocaleDateString()}
                             </p>
                           </div>
                         </div>
                         <div className="text-right">
                           {item.status === 'completed' ? (
                             <>
-                              <p className="text-[10px] text-outline uppercase font-headline font-bold tracking-widest">Impact</p>
+                              <p className="text-[10px] text-outline uppercase font-headline font-bold tracking-widest">영향력 점수</p>
                               <p className={cn('text-lg font-black font-headline', ImpactColor(item.impact_score ?? 0))}>
                                 {item.impact_score ?? 0}
                               </p>
@@ -259,10 +254,10 @@ export default function DashboardPage() {
                             href={`/archive`}
                             className="flex-1 py-2 bg-surface-low text-[#e5e2e1] text-[10px] font-bold uppercase tracking-widest rounded-lg border border-outline-variant/10 hover:bg-surface-highest transition-colors text-center"
                           >
-                            View Details
+                            상세 정보
                           </a>
                           <button className="flex-1 py-2 bg-primary-container/10 text-primary-container text-[10px] font-bold uppercase tracking-widest rounded-lg border border-primary-container/20 hover:bg-primary-container hover:text-white transition-all">
-                            Generate Blog
+                            블로그 초안 생성
                           </button>
                         </div>
                       )}
