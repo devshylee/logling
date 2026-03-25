@@ -76,6 +76,7 @@ export type GitHubRepo = {
   updated_at: string;
   stargazers_count: number;
   forks_count: number;
+  default_branch: string;
 };
 
 export type GitHubCommit = {
@@ -87,6 +88,12 @@ export type GitHubCommit = {
       date: string;
     };
   };
+};
+
+export type GitHubProfile = {
+  login: string;
+  name: string | null;
+  avatar_url: string;
 };
 
 // XP constants

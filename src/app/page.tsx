@@ -82,7 +82,7 @@ export default function Home() {
       setBranches(branchList);
 
       // 기본 브랜치(main/master)가 있으면 자동 선택
-      const defaultBranch = (repo as any).default_branch || (branchList.find((b: { name: string }) => b.name === 'main' || b.name === 'master')?.name) || branchList[0]?.name || '';
+      const defaultBranch = repo.default_branch || (branchList.find((b: { name: string }) => b.name === 'main' || b.name === 'master')?.name) || branchList[0]?.name || '';
       if (defaultBranch) {
         setSelectedBranch(defaultBranch);
         fetchCommits(repo.full_name, defaultBranch);

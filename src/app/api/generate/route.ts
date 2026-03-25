@@ -26,7 +26,7 @@ export async function POST(req: Request) {
 
     if (sourceType === 'github') {
       if (!session) return Response.json({ error: 'GitHub 로그인이 필요합니다.' }, { status: 401 });
-      const accessToken = (session as any).accessToken;
+      const accessToken = session.accessToken;
       if (!accessToken) return Response.json({ error: 'GitHub 액세스 토큰이 없습니다.' }, { status: 403 });
 
       if (!repoFullName) return Response.json({ error: '저장소 이름이 필요합니다.' }, { status: 400 });
@@ -85,7 +85,10 @@ export async function POST(req: Request) {
     }
 
     const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) throw new Error('GEMINI_API_KEY is missing');
+    if (!apiKey) {
+      console.error('GEMINI_API_KEY is not configured.');
+      return Response.json({ error: '서버 설정 오류가 발생했습니다.' }, { status: 500 });
+    }
     const ai = new GoogleGenAI({ apiKey });
 
     const systemInstruction =
@@ -421,6 +424,6 @@ export async function POST(req: Request) {
     return Response.json({ markdown: response.text });
   } catch (error: any) {
     console.error('Blog generation direct failed:', error);
-    return Response.json({ error: error.message || '블로그 생성 중 오류가 발생했습니다.' }, { status: 500 });
+    return Response.json({ error: '블로그 생성 중 오류가 발생했습니다.' }, { status: 500 });
   }
 }

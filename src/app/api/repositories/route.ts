@@ -9,8 +9,8 @@ export async function GET(req: Request) {
     return Response.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const userId = (session.user as any).id as string;
-  const accessToken = (session as any).accessToken as string;
+  const userId = session.user.id;
+  const accessToken = session.accessToken;
 
   if (!accessToken) {
     return Response.json({ error: 'GitHub access token not available' }, { status: 403 });
