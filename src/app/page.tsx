@@ -221,7 +221,7 @@ export default function Home() {
           <div className="w-full xl:w-[450px] flex-shrink-0 flex flex-col gap-6">
             <div>
               <h1 className="text-3xl font-black font-headline text-[#e5e2e1] tracking-tighter mb-2">
-                마법의 블로그 공방 ✍️
+                Logling ✍️
               </h1>
               <p className="text-outline text-sm">코드를 넣으면 전문가 수준의 기술 블로그가 뚝딱!</p>
             </div>
