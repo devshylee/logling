@@ -76,22 +76,20 @@ export default function Home() {
 
     setLoadingBranches(true);
     try {
-      const accessToken = (session as any)?.accessToken;
-      const res = await fetch(`https://api.github.com/repos/${repo.full_name}/branches`, {
-        headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/vnd.github+json' }
-      });
+      const res = await fetch(`/api/github/branches?repo=${encodeURIComponent(repo.full_name)}`);
       const data = await res.json();
       const branchList = Array.isArray(data) ? data : [];
       setBranches(branchList);
 
       // 기본 브랜치(main/master)가 있으면 자동 선택
-      const defaultBranch = (repo as any).default_branch || (branchList.find(b => b.name === 'main' || b.name === 'master')?.name) || branchList[0]?.name || '';
+      const defaultBranch = (repo as any).default_branch || (branchList.find((b: { name: string }) => b.name === 'main' || b.name === 'master')?.name) || branchList[0]?.name || '';
       if (defaultBranch) {
         setSelectedBranch(defaultBranch);
         fetchCommits(repo.full_name, defaultBranch);
       }
     } catch {
       setBranches([]);
+      setErrorMsg('브랜치 목록을 불러오는데 실패했습니다.');
     } finally {
       setLoadingBranches(false);
     }
@@ -109,14 +107,13 @@ export default function Home() {
   const fetchCommits = async (repoFullName: string, branchName: string) => {
     setLoadingCommits(true);
     try {
-      const accessToken = (session as any)?.accessToken;
-      const res = await fetch(`https://api.github.com/repos/${repoFullName}/commits?sha=${branchName}&per_page=30`, {
-        headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/vnd.github+json' }
-      });
+      const params = new URLSearchParams({ repo: repoFullName, sha: branchName, per_page: '30' });
+      const res = await fetch(`/api/github/commits?${params}`);
       const data = await res.json();
       setCommits(Array.isArray(data) ? data : []);
     } catch {
       setCommits([]);
+      setErrorMsg('커밋 목록을 불러오는데 실패했습니다.');
     } finally {
       setLoadingCommits(false);
     }

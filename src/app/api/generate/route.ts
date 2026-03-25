@@ -63,7 +63,12 @@ export async function POST(req: Request) {
         const baseSha = commits[commits.length - 1].sha;
 
         finalDiff = await fetchCompareDiff(accessToken, repoFullName, baseSha + '^', headSha).catch(async () => {
-          return await fetchCompareDiff(accessToken, repoFullName, baseSha, headSha);
+          // 초기 커밋일 경우 fallback 처리
+          console.warn(`Comparing with ${baseSha}^ failed, likely an initial commit. Trying fallback.`);
+          const baseCommitDiff = await fetchCommitDiff(accessToken, repoFullName, baseSha);
+          if (baseSha === headSha) return baseCommitDiff;
+          const restOfDiff = await fetchCompareDiff(accessToken, repoFullName, baseSha, headSha);
+          return `${baseCommitDiff}\n${restOfDiff}`;
         });
 
         contextMessage = `브랜치: ${branch || '기본'}\n기간: ${startDate} ~ ${endDate}\n작업 요약: 총 ${commits.length}개의 커밋 분석`;
