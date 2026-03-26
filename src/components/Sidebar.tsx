@@ -20,7 +20,7 @@ const navItems = [
   { icon: Home, label: '홈', href: '/', id: 'home' },
   { icon: Database, label: '내 저장소', href: '/repositories', id: 'repos' },
   { icon: CalendarDays, label: '성장 기록', href: '/archive', id: 'archive' },
-  { icon: Settings, label: '기지 설정', href: '/settings', id: 'settings' },
+  { icon: Settings, label: '설정', href: '/settings', id: 'settings' },
 ];
 
 export default function Sidebar({ activeId, profile }: { activeId: string; profile?: UserProfile | null }) {
