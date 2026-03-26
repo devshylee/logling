@@ -55,34 +55,43 @@ export default function RepositoriesPage() {
       // 1) GitHub 저장소 동기화 (기존 API 재사용)
       await fetch('/api/repositories');
 
-      // 2) DB에 저장된 저장소 목록 가져오기
-      const { data: dbRepos } = await supabase
-        .from('repositories')
-        .select('*')
-        .eq('user_id', userId)
-        .order('created_at', { ascending: false });
+      // 2) DB에 저장된 저장소 목록과 모든 분석 데이터를 한 번에 가져오기
+      const [{ data: dbRepos }, { data: allAnalyses }] = await Promise.all([
+        supabase
+          .from('repositories')
+          .select('*')
+          .eq('user_id', userId)
+          .order('created_at', { ascending: false }),
+        supabase
+          .from('analyses')
+          .select('id, xp_awarded, impact_score, ai_result, created_at, commit_sha, commit_message, status, completed_at, error_message, repository_id, user_id')
+          .eq('user_id', userId)
+          .eq('status', 'completed')
+          .order('created_at', { ascending: false })
+      ]);
 
       if (!dbRepos) return;
 
-      // 3) 각 저장소의 분석 통계 집계
-      const reposWithStats: RepoWithStats[] = await Promise.all(
-        dbRepos.map(async (repo) => {
-          const { data: analyses } = await supabase
-            .from('analyses')
-            .select('id, xp_awarded, impact_score, ai_result, created_at, commit_sha, commit_message, status, completed_at, error_message, repository_id, user_id')
-            .eq('repository_id', repo.id)
-            .eq('status', 'completed')
-            .order('created_at', { ascending: false });
+      // 3) 클라이언트 측에서 분석 통계 집계
+      const analysesByRepo = (allAnalyses ?? []).reduce((acc, analysis) => {
+        const repoId = analysis.repository_id;
+        if (!acc[repoId]) {
+          acc[repoId] = [];
+        }
+        acc[repoId].push(analysis);
+        return acc;
+      }, {} as Record<string, Analysis[]>);
 
-          const totalXp = (analyses ?? []).reduce((sum, a) => sum + (a.xp_awarded ?? 0), 0);
-          return {
-            ...repo,
-            analysisCount: analyses?.length ?? 0,
-            totalXp,
-            latestAnalysis: analyses?.[0] ?? null,
-          };
-        })
-      );
+      const reposWithStats: RepoWithStats[] = dbRepos.map((repo) => {
+        const repoAnalyses = analysesByRepo[repo.id] ?? [];
+        const totalXp = repoAnalyses.reduce((sum, a) => sum + (a.xp_awarded ?? 0), 0);
+        return {
+          ...repo,
+          analysisCount: repoAnalyses.length,
+          totalXp,
+          latestAnalysis: repoAnalyses[0] ?? null,
+        };
+      });
 
       setRepos(reposWithStats);
     } catch (e) {
@@ -361,7 +370,10 @@ export default function RepositoriesPage() {
                                 {result?.title ?? item.commit_message ?? '(제목 없음)'}
                               </p>
                               <p className="text-[10px] text-outline font-mono mt-0.5">
-                                {item.commit_sha.slice(0, 8)} · {new Date(item.created_at).toLocaleDateString()} · +{item.xp_awarded} XP
+                                {item.commit_sha.slice(0, 8)} · {new Date(item.created_at).toLocaleString('ko-KR', {
+                                  month: 'short', day: 'numeric',
+                                  hour: '2-digit', minute: '2-digit',
+                                })} · +{item.xp_awarded} XP
                               </p>
                             </div>
 

@@ -51,26 +51,27 @@ function calcStreaks(activeSet: Set<string>): { current: number; best: number } 
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
-  let current = 0;
-  let stillCounting = true;
-  for (let i = 0; i < 365; i++) {
+  const dates = Array.from({ length: 365 }, (_, i) => {
     const d = new Date(today);
-    d.setDate(today.getDate() - i);
-    if (activeSet.has(toDateStr(d))) {
-      if (stillCounting) current++;
+    d.setDate(d.getDate() - i);
+    return toDateStr(d);
+  });
+
+  let current = 0;
+  for (const dateStr of dates) {
+    if (activeSet.has(dateStr)) {
+      current++;
     } else {
-      stillCounting = false;
+      break;
     }
   }
 
   let best = 0;
   let run = 0;
-  for (let i = 364; i >= 0; i--) {
-    const d = new Date(today);
-    d.setDate(today.getDate() - i);
-    if (activeSet.has(toDateStr(d))) {
+  for (let i = dates.length - 1; i >= 0; i--) {
+    if (activeSet.has(dates[i])) {
       run++;
-      if (run > best) best = run;
+      best = Math.max(best, run);
     } else {
       run = 0;
     }
