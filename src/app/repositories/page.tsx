@@ -24,7 +24,7 @@ export default function RepositoriesPage() {
   const [loadingCommits, setLoadingCommits] = useState(false);
   const [analyzeMsg, setAnalyzeMsg] = useState('');
 
-  const userId = (session?.user as any)?.id as string | undefined;
+  const userId = session?.user?.id;
 
   useEffect(() => {
     if (sessionStatus === 'unauthenticated') router.push('/login');
@@ -62,7 +62,7 @@ export default function RepositoriesPage() {
     setLoadingCommits(true);
     setCommits([]);
     try {
-      const accessToken = (session as any)?.accessToken;
+      const accessToken = session?.accessToken;
       const res = await fetch(
         `https://api.github.com/repos/${repo.full_name}/commits?per_page=10`,
         { headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/vnd.github+json' } }

@@ -26,7 +26,7 @@ export default function ArchivePage() {
   const [search, setSearch] = useState('');
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
-  const userId = (session?.user as any)?.id as string | undefined;
+  const userId = session?.user?.id;
 
   useEffect(() => {
     if (sessionStatus === 'unauthenticated') router.push('/login');
@@ -54,7 +54,7 @@ export default function ArchivePage() {
 
   const filtered = analyses.filter((a) =>
     (a.ai_result?.title ?? a.commit_message ?? '').toLowerCase().includes(search.toLowerCase()) ||
-    (a.repository as any)?.full_name?.toLowerCase().includes(search.toLowerCase())
+    a.repository?.full_name?.toLowerCase().includes(search.toLowerCase())
   );
 
   if (sessionStatus === 'loading' || loading) {
@@ -206,7 +206,7 @@ export default function ArchivePage() {
                           +{item.xp_awarded} XP
                         </span>
                         <span className="font-mono text-[10px] text-outline">
-                          {new Date(item.created_at).toLocaleDateString()} · {(item.repository as any)?.full_name?.split('/')[1] ?? 'unknown'}
+                          {new Date(item.created_at).toLocaleDateString()} · {item.repository?.full_name?.split('/')[1] ?? 'unknown'}
                         </span>
                       </div>
                     </div>

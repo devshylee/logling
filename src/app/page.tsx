@@ -1,272 +1,485 @@
 'use client';
 
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useSession } from 'next-auth/react';
-import { useRouter } from 'next/navigation';
 import Sidebar from '@/components/Sidebar';
 import TopBar from '@/components/TopBar';
-import { motion } from 'motion/react';
-import { Terminal, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
+import { Github, Upload, Wand2, Search, SlidersHorizontal, Loader2, FileText, Settings2, Copy, Check, Calendar, History, GitBranch } from 'lucide-react';
+import type { GitHubRepo, GitHubCommit } from '@/types';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { cn } from '@/lib/utils';
-import { supabase } from '@/lib/supabase';
-import type { Analysis, UserProfile } from '@/types';
-import { getLevelProgress, getLevelFromXP, XP_PER_LEVEL } from '@/types';
 
-function ImpactColor(score: number) {
-  if (score >= 80) return 'text-[#2ff801]';
-  if (score >= 50) return 'text-primary-container';
-  if (score >= 20) return 'text-tertiary';
-  return 'text-outline';
-}
+export default function Home() {
+  const { data: session } = useSession();
+  const [sourceType, setSourceType] = useState<'github' | 'manual'>('github');
+  const [selectionMode, setSelectionMode] = useState<'commit' | 'range'>('commit');
 
-function StatusBadge({ status }: { status: Analysis['status'] }) {
-  const map = {
-    pending: <span className="flex items-center gap-1 text-outline text-[10px] font-mono"><Loader2 size={12} className="animate-spin" /> 분석 대기 중</span>,
-    processing: <span className="flex items-center gap-1 text-primary-container text-[10px] font-mono"><Loader2 size={12} className="animate-spin" /> 분석 진행 중...</span>,
-    completed: <span className="flex items-center gap-1 text-[#2ff801] text-[10px] font-mono"><CheckCircle2 size={12} /> 분석 완료</span>,
-    failed: <span className="flex items-center gap-1 text-red-400 text-[10px] font-mono"><AlertCircle size={12} /> 분석 실패</span>,
+  const [repos, setRepos] = useState<GitHubRepo[]>([]);
+  const [branches, setBranches] = useState<{ name: string }[]>([]);
+  const [commits, setCommits] = useState<GitHubCommit[]>([]);
+
+  const [selectedRepo, setSelectedRepo] = useState<GitHubRepo | null>(null);
+  const [selectedBranch, setSelectedBranch] = useState<string>('');
+  const [selectedCommit, setSelectedCommit] = useState<GitHubCommit | null>(null);
+
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+
+  const [rawDiff, setRawDiff] = useState('');
+  const [commitMessage, setCommitMessage] = useState('');
+
+  const [promptInstruction, setPromptInstruction] = useState('');
+  const [temperature, setTemperature] = useState(0.7);
+
+  const [loadingRepos, setLoadingRepos] = useState(false);
+  const [loadingBranches, setLoadingBranches] = useState(false);
+  const [loadingCommits, setLoadingCommits] = useState(false);
+  const [generating, setGenerating] = useState(false);
+
+  const [generatedMarkdown, setGeneratedMarkdown] = useState('');
+  const [copied, setCopied] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (session && sourceType === 'github' && repos.length === 0) {
+      fetchRepos();
+    }
+  }, [session, sourceType, repos.length]);
+
+  const fetchRepos = async () => {
+    setLoadingRepos(true);
+    try {
+      const res = await fetch('/api/repositories');
+      const data = await res.json();
+      if (data.repos) setRepos(data.repos);
+    } catch {
+      setErrorMsg('저장소를 불러오는데 실패했습니다.');
+    } finally {
+      setLoadingRepos(false);
+    }
   };
-  return map[status] ?? null;
-}
 
-export default function DashboardPage() {
-  const { data: session, status: sessionStatus } = useSession();
-  const router = useRouter();
-  const [profile, setProfile] = useState<UserProfile | null>(null);
-  const [analyses, setAnalyses] = useState<Analysis[]>([]);
-  const [loading, setLoading] = useState(true);
+  const handleRepoChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const repoId = e.target.value;
+    const repo = repos.find(r => r.id.toString() === repoId) || null;
+    setSelectedRepo(repo);
+    setSelectedBranch('');
+    setBranches([]);
+    setCommits([]);
+    setSelectedCommit(null);
 
-  const userId = (session?.user as any)?.id as string | undefined;
+    if (!repo) return;
 
-  useEffect(() => {
-    if (sessionStatus === 'unauthenticated') router.push('/login');
-  }, [sessionStatus, router]);
+    setLoadingBranches(true);
+    try {
+      const res = await fetch(`/api/github/branches?repo=${encodeURIComponent(repo.full_name)}`);
+      const data = await res.json();
+      const branchList = Array.isArray(data) ? data : [];
+      setBranches(branchList);
 
-  const loadData = useCallback(async () => {
-    if (!userId) return;
-    setLoading(true);
-    const [profileRes, analysesRes] = await Promise.all([
-      supabase.from('user_profiles').select('*').eq('id', userId).single(),
-      supabase
-        .from('analyses')
-        .select('*, repository:repositories(*)')
-        .eq('user_id', userId)
-        .order('created_at', { ascending: false })
-        .limit(10),
-    ]);
-    if (profileRes.data) setProfile(profileRes.data as UserProfile);
-    if (analysesRes.data) setAnalyses(analysesRes.data as Analysis[]);
-    setLoading(false);
-  }, [userId]);
+      // 기본 브랜치(main/master)가 있으면 자동 선택
+      const defaultBranch = repo.default_branch || (branchList.find((b: { name: string }) => b.name === 'main' || b.name === 'master')?.name) || branchList[0]?.name || '';
+      if (defaultBranch) {
+        setSelectedBranch(defaultBranch);
+        fetchCommits(repo.full_name, defaultBranch);
+      }
+    } catch {
+      setBranches([]);
+      setErrorMsg('브랜치 목록을 불러오는데 실패했습니다.');
+    } finally {
+      setLoadingBranches(false);
+    }
+  };
 
-  useEffect(() => {
-    loadData();
-  }, [loadData]);
+  const handleBranchChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const branchName = e.target.value;
+    setSelectedBranch(branchName);
+    setSelectedCommit(null);
+    if (selectedRepo && branchName) {
+      fetchCommits(selectedRepo.full_name, branchName);
+    }
+  };
 
-  useEffect(() => {
-    if (!userId) return;
-    const channel = supabase
-      .channel('dashboard-analyses')
-      .on(
-        'postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'analyses', filter: `user_id=eq.${userId}` },
-        (payload) => {
-          setAnalyses((prev) =>
-            prev.map((a) => (a.id === payload.new.id ? { ...a, ...(payload.new as Analysis) } : a))
-          );
-          if (payload.new.status === 'completed') {
-            supabase.from('user_profiles').select('*').eq('id', userId).single().then(({ data }) => {
-              if (data) setProfile(data as UserProfile);
-            });
-          }
-        }
-      )
-      .subscribe();
+  const fetchCommits = async (repoFullName: string, branchName: string) => {
+    setLoadingCommits(true);
+    try {
+      const params = new URLSearchParams({ repo: repoFullName, sha: branchName, per_page: '30' });
+      const res = await fetch(`/api/github/commits?${params}`);
+      const data = await res.json();
+      setCommits(Array.isArray(data) ? data : []);
+    } catch {
+      setCommits([]);
+      setErrorMsg('커밋 목록을 불러오는데 실패했습니다.');
+    } finally {
+      setLoadingCommits(false);
+    }
+  };
 
-    return () => { supabase.removeChannel(channel); };
-  }, [userId]);
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      setRawDiff((event.target?.result as string) ?? '');
+    };
+    reader.readAsText(file);
+  };
 
-  const currentLevel = profile ? getLevelFromXP(profile.xp) : 1;
-  const progressPct = profile ? getLevelProgress(profile.xp) * 100 : 0;
-  const currentXP = profile ? profile.xp % XP_PER_LEVEL : 0;
-  const pendingCount = analyses.filter((a) => a.status === 'pending' || a.status === 'processing').length;
+  const handleGenerate = async () => {
+    setErrorMsg('');
+    setGeneratedMarkdown('');
 
-  if (sessionStatus === 'loading' || (sessionStatus === 'authenticated' && loading)) {
-    return (
-      <div className="flex min-h-screen bg-surface items-center justify-center">
-        <Loader2 size={32} className="animate-spin text-primary-container" />
-      </div>
-    );
-  }
+    if (sourceType === 'github' && selectionMode === 'range') {
+      if (!startDate || !endDate) {
+        setErrorMsg('시작 날짜와 종료 날짜를 모두 입력해주세요.');
+        return;
+      }
+      const s = new Date(startDate);
+      const e = new Date(endDate);
+      const diffDays = Math.ceil(Math.abs(e.getTime() - s.getTime()) / (1000 * 60 * 60 * 24));
+      if (diffDays > 7) {
+        setErrorMsg('분석 기간은 최대 7일까지 가능합니다.');
+        return;
+      }
+    }
+
+    setGenerating(true);
+    try {
+      const body = {
+        sourceType,
+        repoFullName: selectedRepo?.full_name,
+        branch: selectedBranch,
+        commitSha: selectionMode === 'commit' ? selectedCommit?.sha : undefined,
+        startDate: selectionMode === 'range' ? startDate : undefined,
+        endDate: selectionMode === 'range' ? endDate : undefined,
+        rawDiff,
+        commitMessage: sourceType === 'github' && selectionMode === 'commit' ? selectedCommit?.commit.message : commitMessage,
+        promptInstruction,
+        temperature
+      };
+
+      const res = await fetch('/api/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+
+      const data = await res.json();
+      if (res.ok && data.markdown) {
+        setGeneratedMarkdown(data.markdown);
+      } else {
+        setErrorMsg(data.error || '생성 중 오류가 발생했습니다.');
+      }
+    } catch (err: any) {
+      setErrorMsg(err.message || '네트워크 오류가 발생했습니다.');
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  const copyToClipboard = () => {
+    navigator.clipboard.writeText(generatedMarkdown);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  const downloadMarkdown = () => {
+    if (!generatedMarkdown) return;
+    const blob = new Blob([generatedMarkdown], { type: 'text/markdown' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    const filename = `blog_${new Date().toISOString().split('T')[0]}.md`;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const isReady = sourceType === 'github'
+    ? (selectedRepo && selectedBranch && (selectionMode === 'commit' ? selectedCommit : (startDate && endDate)))
+    : (rawDiff.trim().length > 10);
 
   return (
-    <div className="flex min-h-screen bg-surface">
-      <Sidebar activeId="home" profile={profile} />
+    <div className="flex min-h-screen bg-[#0a0a0a]">
+      <Sidebar activeId="home" />
 
-      <main className="flex-1 ml-64">
+      <main className="flex-1 ml-64 flex flex-col h-screen overflow-hidden">
         <TopBar />
 
-        <div className="p-10 max-w-7xl mx-auto space-y-10">
-          <motion.section
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="bg-surface-low rounded-2xl p-8 border border-outline-variant/5 overflow-hidden relative group"
-          >
-            <div className="absolute -top-24 -right-24 w-64 h-64 bg-primary-container/10 blur-[100px] rounded-full" />
-            <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 relative z-10">
-              <div className="flex-1">
-                <div className="flex items-baseline gap-4 mb-4">
-                  <h1 className="font-headline text-5xl font-black text-[#e5e2e1] tracking-tighter">
-                    레벨 {currentLevel}
-                  </h1>
-                  <span className="font-headline text-xs font-bold text-[#79ff5b] uppercase tracking-[0.2em]">
-                    {profile?.nickname ?? '로그링 요원'}
-                  </span>
-                </div>
+        <div className="flex-1 overflow-y-auto p-8 flex flex-col xl:flex-row gap-8">
 
-                <div className="w-full h-4 bg-surface-highest rounded-full overflow-hidden flex items-center p-[2px]">
-                  <motion.div
-                    className="h-full bg-[#2ff801] rounded-full relative overflow-visible shadow-[0_0_15px_#2ff801]"
-                    initial={{ width: 0 }}
-                    animate={{ width: `${progressPct}%` }}
-                    transition={{ duration: 1, ease: 'easeOut' }}
-                  >
-                    <div className="absolute right-0 top-0 h-full w-4 bg-white/40 blur-sm" />
-                  </motion.div>
-                </div>
-
-                <div className="flex justify-between mt-3">
-                  <span className="font-mono text-[10px] text-outline uppercase tracking-widest">
-                    경험치: {currentXP.toLocaleString()} XP / {XP_PER_LEVEL.toLocaleString()} XP
-                  </span>
-                  <span className="font-mono text-[10px] text-[#2ff801] font-bold uppercase tracking-widest">
-                    다음 레벨: {currentLevel + 1}
-                  </span>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4 md:w-64">
-                <div className="bg-surface-high p-4 rounded-xl border border-outline-variant/10">
-                  <p className="text-[10px] text-outline uppercase font-headline tracking-widest mb-1">누적 경험치</p>
-                  <p className="font-mono text-lg font-bold text-[#e5e2e1]">{(profile?.xp ?? 0).toLocaleString()}</p>
-                </div>
-                <div className="bg-surface-high p-4 rounded-xl border border-outline-variant/10">
-                  <p className="text-[10px] text-outline uppercase font-headline tracking-widest mb-1">진행 중인 퀘스트</p>
-                  <p className={cn('font-mono text-lg font-bold', pendingCount > 0 ? 'text-primary-container' : 'text-outline')}>
-                    {pendingCount > 0 ? `${pendingCount}개 분석 중` : '대기 중'}
-                  </p>
-                </div>
-              </div>
+          {/* Left Panel: Configuration */}
+          <div className="w-full xl:w-[450px] flex-shrink-0 flex flex-col gap-6">
+            <div>
+              <h1 className="text-3xl font-black font-headline text-[#e5e2e1] tracking-tighter mb-2">
+                Logling ✍️
+              </h1>
+              <p className="text-outline text-sm">코드를 넣으면 전문가 수준의 기술 블로그가 뚝딱!</p>
             </div>
-          </motion.section>
 
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-            <div className="lg:col-span-7 flex flex-col items-center justify-center min-h-[400px] relative">
-              <motion.div
-                initial={{ scale: 0.9, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                transition={{ delay: 0.2 }}
-                className="bg-surface-high/60 backdrop-blur-xl border border-outline-variant/20 p-6 rounded-3xl shadow-2xl relative mb-12 max-w-sm"
+            {/* Input Source Toggle */}
+            <div className="bg-surface-high p-1 rounded-xl flex gap-1 border border-outline-variant/10">
+              <button
+                onClick={() => setSourceType('github')}
+                className={cn('flex-1 py-1.5 rounded-lg text-[11px] font-bold flex items-center justify-center gap-2 transition-all', sourceType === 'github' ? 'bg-primary-container text-white shadow-lg' : 'text-outline hover:text-[#e5e2e1]')}
               >
-                <p className="text-[#e5e2e1] text-lg font-headline font-medium leading-relaxed">
-                  {pendingCount > 0
-                    ? `🔍 ${pendingCount}개의 커밋을 분석 중이에요!`
-                    : analyses.length === 0
-                      ? '저장소를 연결하고 첫 번째 커밋을 분석해봐요! 🚀'
-                      : `총 ${analyses.length}개의 분석 완료! 오늘도 멋진 코드네요 💪`}
-                </p>
-                <div className="absolute -bottom-3 left-1/2 -translate-x-1/2 w-6 h-6 bg-surface-high/60 border-r border-b border-outline-variant/20 rotate-45" />
-              </motion.div>
+                <Github size={14} /> GitHub 연동
+              </button>
+              <button
+                onClick={() => setSourceType('manual')}
+                className={cn('flex-1 py-1.5 rounded-lg text-[11px] font-bold flex items-center justify-center gap-2 transition-all', sourceType === 'manual' ? 'bg-[#2ff801] text-[#0a0a0a] shadow-lg' : 'text-outline hover:text-[#e5e2e1]')}
+              >
+                <FileText size={14} /> 직접 입력
+              </button>
+            </div>
 
-              <motion.div
-                animate={{ y: [0, -10, 0] }}
-                transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
-                className="w-64 h-64 relative"
-              >
-                <div className="absolute inset-0 bg-tertiary/20 blur-[60px] rounded-full" />
-                <div className="relative w-full h-full flex items-center justify-center">
-                  <div className="w-48 h-48 bg-surface-high rounded-[40px] border-4 border-surface-highest shadow-inner flex flex-col items-center justify-center gap-4">
-                    <div className="flex gap-4">
-                      <div className={cn('w-10 h-3 rounded-full shadow-[0_0_15px_#2ff801]', pendingCount > 0 ? 'bg-primary-container' : 'bg-[#2ff801]')} />
-                      <div className={cn('w-10 h-3 rounded-full shadow-[0_0_15px_#2ff801]', pendingCount > 0 ? 'bg-primary-container animate-pulse' : 'bg-[#2ff801]')} />
+            {/* Config Card */}
+            <div className="bg-surface-low rounded-2xl p-5 border border-outline-variant/10 flex flex-col gap-4">
+              {sourceType === 'github' ? (
+                <>
+                  {!session ? (
+                    <div className="text-center py-6">
+                      <p className="text-outline text-sm mb-3">GitHub 로그인이 필요합니다.</p>
+                      <a href="/login" className="inline-block px-4 py-2 bg-primary-container text-white rounded-lg text-sm font-bold">로그인 하기</a>
                     </div>
-                    <div className="w-24 h-1 bg-outline-variant/30 rounded-full" />
-                  </div>
-                </div>
-              </motion.div>
-            </div>
+                  ) : (
+                    <>
+                      {/* Step 1: Repo Select */}
+                      <div>
+                        <label className="text-[10px] font-bold text-outline uppercase tracking-widest mb-2 block">1. 저장소 선택</label>
+                        <select
+                          className="w-full bg-[#131313] border border-outline-variant/20 rounded-xl px-4 py-2.5 text-xs focus:ring-2 focus:ring-primary-container text-[#e5e2e1]"
+                          onChange={handleRepoChange}
+                          value={selectedRepo?.id.toString() || ''}
+                        >
+                          <option value="">저장소를 선택하세요</option>
+                          {repos.map(r => <option key={r.id} value={r.id}>{r.full_name}</option>)}
+                        </select>
+                      </div>
 
-            <div className="lg:col-span-5 space-y-6">
-              <div className="flex items-center justify-between mb-2 px-2">
-                <h2 className="font-headline font-bold text-xl tracking-tight">최근 분석 내역</h2>
-                <a href="/archive" className="text-xs font-headline font-bold uppercase tracking-widest text-outline hover:text-[#e5e2e1] transition-colors">
-                  전체 보기
-                </a>
-              </div>
+                      {/* Step 2: Branch Select */}
+                      <AnimatePresence>
+                        {selectedRepo && (
+                          <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }}>
+                            <label className="text-[10px] font-bold text-outline uppercase tracking-widest mb-2 block">2. 브랜치 선택</label>
+                            <div className="relative">
+                              <select
+                                className="w-full bg-[#131313] border border-outline-variant/20 rounded-xl pl-10 pr-4 py-2.5 text-xs focus:ring-2 focus:ring-primary-container text-[#e5e2e1] appearance-none"
+                                onChange={handleBranchChange}
+                                value={selectedBranch || ''}
+                                disabled={loadingBranches}
+                              >
+                                <option value="">브랜치를 선택하세요</option>
+                                {branches.map(b => <option key={b.name} value={b.name}>{b.name}</option>)}
+                              </select>
+                              <div className="absolute left-3 top-1/2 -translate-y-1/2 text-outline">
+                                {loadingBranches ? <Loader2 size={14} className="animate-spin" /> : <GitBranch size={14} />}
+                              </div>
+                            </div>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
 
-              {analyses.length === 0 ? (
-                <div className="bg-surface-high rounded-2xl p-8 border border-outline-variant/10 text-center">
-                  <p className="text-outline text-sm">아직 분석 결과가 없어요.</p>
-                  <a href="/repositories" className="mt-3 inline-block text-primary-container text-sm font-bold hover:underline">
-                    저장소 연결하기 →
-                  </a>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {analyses.slice(0, 5).map((item, i) => (
-                    <motion.div
-                      key={item.id}
-                      initial={{ opacity: 0, x: 20 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: 0.1 * i }}
-                      className="bg-surface-high rounded-2xl p-5 border border-outline-variant/10 hover:border-primary-container/30 transition-all group"
-                    >
-                      <div className="flex justify-between items-start mb-4">
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-lg bg-[#131313] flex items-center justify-center text-primary-container border border-outline-variant/10">
-                            <Terminal size={18} />
-                          </div>
+                      {/* Step 3: Mode & Detail Select */}
+                      {selectedBranch && (
+                        <div className="pt-2 flex flex-col gap-4">
                           <div>
-                            <h4 className="text-sm font-bold text-[#e5e2e1] line-clamp-1">
-                              {item.ai_result?.title ?? item.commit_message ?? '분석 중...'}
-                            </h4>
-                            <p className="font-mono text-[10px] text-outline tracking-tighter">
-                              {(item.repository as any)?.full_name ?? '알 수 없는 저장소'} • {new Date(item.created_at).toLocaleDateString()}
-                            </p>
+                            <label className="text-[10px] font-bold text-outline uppercase tracking-widest mb-2 block">3. 분석 범위 설정</label>
+                            <div className="bg-[#0a0a0a] p-1 rounded-lg flex gap-1 border border-outline-variant/5">
+                              <button
+                                onClick={() => setSelectionMode('commit')}
+                                className={cn('flex-1 py-1.5 rounded-md text-[10px] font-bold flex items-center justify-center gap-1 transition-all', selectionMode === 'commit' ? 'bg-surface-highest text-white' : 'text-outline')}
+                              >
+                                <History size={12} /> 단일 커밋
+                              </button>
+                              <button
+                                onClick={() => setSelectionMode('range')}
+                                className={cn('flex-1 py-1.5 rounded-md text-[10px] font-bold flex items-center justify-center gap-1 transition-all', selectionMode === 'range' ? 'bg-surface-highest text-white' : 'text-outline')}
+                              >
+                                <Calendar size={12} /> 기간 설정
+                              </button>
+                            </div>
                           </div>
-                        </div>
-                        <div className="text-right">
-                          {item.status === 'completed' ? (
-                            <>
-                              <p className="text-[10px] text-outline uppercase font-headline font-bold tracking-widest">영향력 점수</p>
-                              <p className={cn('text-lg font-black font-headline', ImpactColor(item.impact_score ?? 0))}>
-                                {item.impact_score ?? 0}
-                              </p>
-                            </>
+
+                          {selectionMode === 'commit' ? (
+                            <div>
+                              <select
+                                className="w-full bg-[#131313] border border-outline-variant/20 rounded-xl px-4 py-2.5 text-xs focus:ring-2 focus:ring-primary-container text-[#e5e2e1]"
+                                disabled={loadingCommits}
+                                onChange={(e) => {
+                                  const c = commits.find(c => c.sha === e.target.value);
+                                  setSelectedCommit(c || null);
+                                }}
+                                value={selectedCommit?.sha || ''}
+                              >
+                                <option value="">분석할 커밋을 선택하세요</option>
+                                {commits.map(c => <option key={c.sha} value={c.sha}>{c.commit.message.split('\n')[0]} ({c.sha.slice(0, 7)})</option>)}
+                              </select>
+                              {loadingCommits && <p className="text-[10px] text-primary-container mt-1 ml-1 flex items-center gap-1"><Loader2 size={10} className="animate-spin" /> 커밋 목록 로딩 중...</p>}
+                            </div>
                           ) : (
-                            <StatusBadge status={item.status} />
+                            <div className="flex flex-col gap-2">
+                              <div className="flex gap-2">
+                                <input
+                                  type="date"
+                                  className="flex-1 bg-[#131313] border border-outline-variant/20 rounded-xl px-3 py-2 text-xs focus:ring-2 focus:ring-primary-container text-[#e5e2e1]"
+                                  value={startDate}
+                                  onChange={(e) => setStartDate(e.target.value)}
+                                />
+                                <span className="text-outline flex items-center">~</span>
+                                <input
+                                  type="date"
+                                  className="flex-1 bg-[#131313] border border-outline-variant/20 rounded-xl px-3 py-2 text-xs focus:ring-2 focus:ring-primary-container text-[#e5e2e1]"
+                                  value={endDate}
+                                  onChange={(e) => setEndDate(e.target.value)}
+                                />
+                              </div>
+                              <p className="text-[10px] text-outline text-center">※ 최대 7일 이내의 변경 사항 분석 권장</p>
+                            </div>
                           )}
                         </div>
-                      </div>
-                      {item.status === 'completed' && (
-                        <div className="flex gap-3">
-                          <a
-                            href={`/archive`}
-                            className="flex-1 py-2 bg-surface-low text-[#e5e2e1] text-[10px] font-bold uppercase tracking-widest rounded-lg border border-outline-variant/10 hover:bg-surface-highest transition-colors text-center"
-                          >
-                            상세 정보
-                          </a>
-                          <button className="flex-1 py-2 bg-primary-container/10 text-primary-container text-[10px] font-bold uppercase tracking-widest rounded-lg border border-primary-container/20 hover:bg-primary-container hover:text-white transition-all">
-                            블로그 초안 생성
-                          </button>
-                        </div>
                       )}
-                    </motion.div>
-                  ))}
+                    </>
+                  )}
+                </>
+              ) : (
+                <>
+                  <div>
+                    <label className="text-[10px] font-bold text-outline uppercase tracking-widest mb-2 flex justify-between">
+                      Git Diff 텍스트
+                      <button onClick={() => fileInputRef.current?.click()} className="text-primary-container hover:underline flex items-center gap-1">
+                        <Upload size={12} /> 파일 업로드
+                      </button>
+                      <input type="file" ref={fileInputRef} className="hidden" onChange={handleFileUpload} />
+                    </label>
+                    <textarea
+                      className="w-full h-32 bg-[#131313] border border-outline-variant/20 rounded-xl p-4 text-xs font-mono focus:ring-2 focus:ring-[#2ff801] text-tertiary placeholder:text-outline/40 resize-none"
+                      placeholder="이곳에 git diff 내용을 붙여넣으세요..."
+                      value={rawDiff}
+                      onChange={(e) => setRawDiff(e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-bold text-outline uppercase tracking-widest mb-2 block">커밋 메시지 / 변경 배경 (선택)</label>
+                    <input
+                      className="w-full bg-[#131313] border border-outline-variant/20 rounded-xl px-4 py-2.5 text-xs focus:ring-2 focus:ring-[#2ff801] text-[#e5e2e1]"
+                      placeholder="어떤 변경이었는지 짧게 설명해주세요"
+                      value={commitMessage}
+                      onChange={(e) => setCommitMessage(e.target.value)}
+                    />
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* AI Customization Panel */}
+            <div className="bg-surface-low rounded-2xl p-5 border border-outline-variant/10 flex flex-col gap-5 mt-auto">
+              <div className="flex items-center gap-2 mb-1">
+                <Settings2 size={16} className="text-tertiary" />
+                <h3 className="font-headline font-bold text-sm text-[#e5e2e1]">스타일 및 커스텀 프롬프트</h3>
+              </div>
+
+              <div>
+                <label className="text-[10px] font-bold text-outline uppercase tracking-widest mb-2 block">추가 지시사항</label>
+                <textarea
+                  className="w-full h-20 bg-[#131313] border border-outline-variant/20 rounded-xl p-3 text-xs focus:ring-2 focus:ring-tertiary text-[#e5e2e1] placeholder:text-outline/40 resize-none"
+                  placeholder="예: '임베디드 개발자 톤으로 작성해줘', '코드의 결함보다는 혁신적인 점을 강조해줘'"
+                  value={promptInstruction}
+                  onChange={(e) => setPromptInstruction(e.target.value)}
+                />
+              </div>
+
+              <div>
+                <label className="text-[10px] font-bold text-outline uppercase tracking-widest mb-2 flex justify-between">
+                  창의성 계수 <span>{temperature.toFixed(1)}</span>
+                </label>
+                <input
+                  type="range" min="0" max="1" step="0.1"
+                  value={temperature}
+                  onChange={(e) => setTemperature(parseFloat(e.target.value))}
+                  className="w-full accent-tertiary"
+                />
+              </div>
+
+              <button
+                onClick={handleGenerate}
+                disabled={!isReady || generating}
+                className="w-full mt-2 py-4 bg-gradient-to-r from-primary-container to-[#005bb5] text-white rounded-xl font-headline font-bold uppercase tracking-widest hover:shadow-[0_0_20px_rgba(0,112,243,0.4)] transition-all disabled:opacity-50 flex items-center justify-center gap-2 active:scale-[0.98]"
+              >
+                {generating ? <><Loader2 className="animate-spin" size={18} /> 분석 중...</> : <><Wand2 size={18} /> 블로그 글 생성하기</>}
+              </button>
+            </div>
+          </div>
+
+          {/* Right Panel: Output Preview */}
+          <div className="flex-1 bg-surface-high border border-outline-variant/10 rounded-3xl overflow-hidden flex flex-col shadow-2xl relative">
+
+            {/* Toolbar */}
+            <div className="bg-[#1c1b1b] border-b border-outline-variant/10 px-6 py-4 flex justify-between items-center z-10">
+              <div className="flex items-center gap-2 text-primary-container font-headline font-bold text-sm uppercase tracking-widest">
+                <FileText size={16} /> Preview
+              </div>
+
+              {generatedMarkdown && (
+                <div className="flex gap-2">
+                  <button
+                    onClick={downloadMarkdown}
+                    className="flex items-center gap-2 px-3 py-1.5 bg-surface-lowest hover:bg-surface-low border border-outline-variant/20 rounded-lg text-xs font-bold text-[#e5e2e1] transition-all"
+                  >
+                    <Upload size={14} className="rotate-180" /> MD 다운로드
+                  </button>
+                  <button
+                    onClick={copyToClipboard}
+                    className="flex items-center gap-2 px-3 py-1.5 bg-surface-lowest hover:bg-surface-low border border-outline-variant/20 rounded-lg text-xs font-bold text-[#e5e2e1] transition-all"
+                  >
+                    {copied ? <><Check size={14} className="text-[#2ff801]" /> 복사 완료!</> : <><Copy size={14} /> 복사</>}
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Content Area */}
+            <div className="flex-1 bg-[#0a0a0a] overflow-y-auto p-8 relative">
+              {errorMsg && (
+                <div className="p-4 bg-red-500/10 border border-red-500/20 text-red-400 rounded-xl mb-6 text-sm flex items-center gap-2">
+                  <Loader2 size={16} className="rotate-45" /> {errorMsg}
+                </div>
+              )}
+
+              {generating ? (
+                <div className="absolute inset-0 flex flex-col items-center justify-center">
+                  <motion.div
+                    animate={{ rotate: 360 }}
+                    transition={{ duration: 8, repeat: Infinity, ease: 'linear' }}
+                    className="mb-8"
+                  >
+                    <Wand2 size={64} className="text-primary-container opacity-50" />
+                  </motion.div>
+                  <p className="text-[#e5e2e1] font-headline font-bold text-xl animate-pulse">AI 마법사가 코드를 읽고 있습니다...</p>
+                  <p className="text-outline text-xs mt-3 tracking-widest uppercase">작업량이 많을 경우 최대 1분이 소요될 수 있습니다</p>
+                </div>
+              ) : generatedMarkdown ? (
+                <div className="prose prose-invert prose-p:text-[#e5e2e1] prose-headings:text-[#e5e2e1] prose-a:text-primary-container prose-pre:bg-[#131313] prose-pre:border prose-pre:border-outline-variant/10 prose-th:text-[#e5e2e1] prose-td:text-[#e5e2e1] prose-table:border-collapse prose-th:border prose-th:border-outline-variant/20 prose-td:border prose-td:border-outline-variant/20 prose-th:p-2 prose-td:p-2 max-w-none">
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{generatedMarkdown}</ReactMarkdown>
+                </div>
+              ) : (
+                <div className="absolute inset-0 flex items-center justify-center opacity-20">
+                  <div className="text-center flex flex-col items-center">
+                    <History size={80} className="text-outline mb-6" />
+                    <p className="text-outline text-xl font-headline font-bold">대기 중인 임무가 없습니다</p>
+                    <p className="text-outline text-sm mt-2">왼쪽 패널에서 코드를 입력하고 생성을 시작하세요</p>
+                  </div>
                 </div>
               )}
             </div>
           </div>
+
         </div>
       </main>
     </div>

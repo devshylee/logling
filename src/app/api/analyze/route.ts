@@ -28,7 +28,7 @@ export async function POST(req: Request) {
     return Response.json({ error: 'Invalid JSON body' }, { status: 400 });
   }
 
-  const accessToken = (session as any).accessToken as string;
+  const accessToken = session.accessToken;
   if (!accessToken) {
     return Response.json({ error: 'GitHub access token not available' }, { status: 403 });
   }
@@ -50,7 +50,7 @@ export async function POST(req: Request) {
 
   // Better: look up by session user id stored in token
   // For now we use email as fallback; the NextAuth route stores id as token.sub
-  const userId = (session.user as any).id as string;
+  const userId = session.user.id;
   if (!userId) {
     return Response.json({ error: 'User ID not found in session' }, { status: 401 });
   }

@@ -2,6 +2,7 @@ import NextAuth, { type NextAuthOptions } from 'next-auth';
 import GithubProvider from 'next-auth/providers/github';
 import { createAdminClient } from '@/lib/supabase';
 import { githubIdToUUID } from '@/lib/utils';
+import type { GitHubProfile } from '@/types';
 
 export const authOptions: NextAuthOptions = {
   providers: [
@@ -23,17 +24,17 @@ export const authOptions: NextAuthOptions = {
         token.accessToken = account.access_token;
       }
       if (profile) {
-        token.githubUsername = (profile as any).login;
-        token.avatarUrl = (profile as any).avatar_url;
+        token.githubUsername = (profile as GitHubProfile).login;
+        token.avatarUrl = (profile as GitHubProfile).avatar_url;
       }
       return token;
     },
     // Expose token data to the session object (client-accessible)
     async session({ session, token }) {
-      (session as any).accessToken = token.accessToken;
+      session.accessToken = token.accessToken as string;
       if (session.user && token.sub) {
-        (session.user as any).id = githubIdToUUID(token.sub);
-        (session.user as any).githubUsername = token.githubUsername;
+        session.user.id = githubIdToUUID(token.sub);
+        session.user.githubUsername = token.githubUsername as string;
         session.user.image = (token.avatarUrl as string) ?? session.user.image;
       }
       return session;
@@ -42,7 +43,7 @@ export const authOptions: NextAuthOptions = {
     async signIn({ user, account, profile }) {
       if (account?.provider !== 'github' || !profile) return true;
 
-      const githubProfile = profile as any;
+      const githubProfile = profile as GitHubProfile;
       const admin = createAdminClient();
 
       const { error } = await admin.from('user_profiles').upsert(
