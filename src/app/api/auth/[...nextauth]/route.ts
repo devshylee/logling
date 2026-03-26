@@ -30,10 +30,10 @@ export const authOptions: NextAuthOptions = {
     },
     // Expose token data to the session object (client-accessible)
     async session({ session, token }) {
-      (session as any).accessToken = token.accessToken;
+      session.accessToken = token.accessToken;
       if (session.user && token.sub) {
-        (session.user as any).id = githubIdToUUID(token.sub);
-        (session.user as any).githubUsername = token.githubUsername;
+        session.user.id = githubIdToUUID(token.sub);
+        session.user.githubUsername = token.githubUsername;
         session.user.image = (token.avatarUrl as string) ?? session.user.image;
       }
       return session;
