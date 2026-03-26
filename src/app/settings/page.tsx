@@ -92,13 +92,22 @@ export default function SettingsPage() {
     if (sessionStatus === 'unauthenticated') router.push('/login');
   }, [sessionStatus, router]);
 
+  const showToast = useCallback((message: string, ok: boolean) => {
+    setToast({ message, ok });
+  }, []);
+
   const loadProfile = useCallback(async () => {
     if (!userId) return;
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('user_profiles')
       .select('*')
       .eq('id', userId)
       .single();
+
+    if (error && error.code !== 'PGRST116') { // PGRST116: no rows found
+      showToast('프로필을 불러오는데 실패했습니다.', false);
+    }
+
     if (data) {
       const p = data as UserProfile;
       setProfile(p);
@@ -107,7 +116,7 @@ export default function SettingsPage() {
       setTelemetrySharing(p.telemetry_sharing);
     }
     setLoading(false);
-  }, [userId]);
+  }, [userId, showToast]);
 
   useEffect(() => { loadProfile(); }, [loadProfile]);
 
@@ -120,9 +129,7 @@ export default function SettingsPage() {
     }
   }, [toast]);
 
-  function showToast(message: string, ok: boolean) {
-    setToast({ message, ok });
-  }
+
 
   // ── Save neural link settings ────────────────────────────────────────────
 
@@ -158,6 +165,7 @@ export default function SettingsPage() {
       setPublicProfile(profile?.public_profile ?? false); // Revert toggle to previous profile's value
       setTelemetrySharing(profile?.telemetry_sharing ?? false); // Revert toggle to previous profile's value
     } else {
+      setProfile(prev => prev ? { ...prev, public_profile: publicProfile, telemetry_sharing: telemetrySharing } : prev);
       showToast('권한 설정이 저장됐습니다.', true);
     }
   };
@@ -216,11 +224,14 @@ export default function SettingsPage() {
           </div>
 
           {/* ── Tabs ── */}
-          <div className="flex gap-1 bg-surface-low border border-outline-variant/10 p-1 rounded-2xl w-fit">
+          <div role="tablist" aria-label="설정 탭" className="flex gap-1 bg-surface-low border border-outline-variant/10 p-1 rounded-2xl w-fit">
             {tabs.map(({ id, label, icon: Icon }) => (
               <button
                 key={id}
                 id={`tab-${id}`}
+                role="tab"
+                aria-selected={activeTab === id}
+                aria-controls={`tabpanel-${id}`}
                 onClick={() => setActiveTab(id)}
                 className={cn(
                   'flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold transition-all',
@@ -229,7 +240,7 @@ export default function SettingsPage() {
                     : 'text-outline hover:text-[#e5e2e1]'
                 )}
               >
-                <Icon size={14} />
+                <Icon size={14} aria-hidden="true" />
                 {label}
               </button>
             ))}
@@ -241,6 +252,9 @@ export default function SettingsPage() {
             {activeTab === 'neural' && (
               <motion.div
                 key="neural"
+                id="tabpanel-neural"
+                role="tabpanel"
+                aria-labelledby="tab-neural"
                 initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: 8 }}
@@ -374,6 +388,9 @@ export default function SettingsPage() {
             {activeTab === 'sovereignty' && (
               <motion.div
                 key="sovereignty"
+                id="tabpanel-sovereignty"
+                role="tabpanel"
+                aria-labelledby="tab-sovereignty"
                 initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: 8 }}
