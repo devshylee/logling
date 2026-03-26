@@ -53,7 +53,10 @@ export default function RepositoriesPage() {
     setLoading(true);
     try {
       // 1) Sync repositories with GitHub (Existing API)
-      await fetch('/api/repositories');
+      const syncResponse = await fetch('/api/repositories');
+      if (!syncResponse.ok) {
+        console.error(`[fetchRepos] Sync failed with status: ${syncResponse.status}`);
+      }
 
       // 2) Fetch pre-aggregated repository stats via RPC
       // This solves the N+1 problem and high memory usage by aggregating on the DB side.

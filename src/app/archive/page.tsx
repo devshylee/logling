@@ -167,7 +167,8 @@ export default function ArchivePage() {
     grid.forEach((week, col) => {
       const firstDate = week.find(d => d !== '');
       if (!firstDate) return;
-      const month = new Date(firstDate + 'T00:00:00').getMonth();
+      // firstDate is YYYY-MM-DD, so slice(5,7) is the month (01-12)
+      const month = parseInt(firstDate.slice(5, 7), 10) - 1; // getMonth() returns 0-11
       if (month !== lastMonth) {
         monthPositions.push({ label: MONTH_LABELS[month], col });
         lastMonth = month;
