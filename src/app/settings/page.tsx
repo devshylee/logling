@@ -9,7 +9,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import {
   Link2, Github, ShieldCheck, Trash2, Loader2,
   CheckCircle2, AlertCircle, RefreshCw, Eye, EyeOff,
-  ChevronRight, User, Calendar,
+  User, Calendar,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import type { UserProfile } from '@/types';
@@ -22,10 +22,10 @@ type Tab = 'neural' | 'sovereignty';
 
 // ── Toggle component ─────────────────────────────────────────────────────────
 
-function Toggle({ enabled, onChange }: { enabled: boolean; onChange: (v: boolean) => void }) {
+function Toggle({ enabled, onChange, id }: { enabled: boolean; onChange: (v: boolean) => void; id: string }) {
   return (
     <button
-      id={`toggle-${enabled}`}
+      id={id}
       role="switch"
       aria-checked={enabled}
       onClick={() => onChange(!enabled)}
@@ -111,9 +111,17 @@ export default function SettingsPage() {
 
   useEffect(() => { loadProfile(); }, [loadProfile]);
 
+  useEffect(() => {
+    if (toast) {
+      const timer = setTimeout(() => {
+        setToast(null);
+      }, 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [toast]);
+
   function showToast(message: string, ok: boolean) {
     setToast({ message, ok });
-    setTimeout(() => setToast(null), 3000);
   }
 
   // ── Save neural link settings ────────────────────────────────────────────
@@ -128,6 +136,7 @@ export default function SettingsPage() {
     setSaving(false);
     if (error) {
       showToast('저장에 실패했습니다.', false);
+      setNickname(profile?.nickname || ''); // Revert nickname to previous profile's nickname
     } else {
       setProfile(prev => prev ? { ...prev, nickname: nickname.trim() } : prev);
       showToast('프로필이 업데이트됐습니다.', true);
@@ -146,6 +155,8 @@ export default function SettingsPage() {
     setSaving(false);
     if (error) {
       showToast('설정 저장에 실패했습니다.', false);
+      setPublicProfile(profile?.public_profile ?? false); // Revert toggle to previous profile's value
+      setTelemetrySharing(profile?.telemetry_sharing ?? false); // Revert toggle to previous profile's value
     } else {
       showToast('권한 설정이 저장됐습니다.', true);
     }
@@ -183,8 +194,8 @@ export default function SettingsPage() {
   const xpInLevel = (profile?.xp ?? 0) % XP_PER_LEVEL;
 
   const tabs: { id: Tab; label: string; icon: typeof Link2 }[] = [
-    { id: 'neural', label: 'Neural Link', icon: Link2 },
-    { id: 'sovereignty', label: 'Sovereignty', icon: ShieldCheck },
+    { id: 'neural', label: '정보', icon: Link2 },
+    { id: 'sovereignty', label: '권한', icon: ShieldCheck },
   ];
 
   // ── Render ────────────────────────────────────────────────────────────────
@@ -391,7 +402,7 @@ export default function SettingsPage() {
                           <p className="text-[11px] text-outline mt-0.5">다른 사용자가 내 레벨과 통계를 볼 수 있습니다</p>
                         </div>
                       </div>
-                      <Toggle enabled={publicProfile} onChange={setPublicProfile} />
+                      <Toggle id="public-profile-toggle" enabled={publicProfile} onChange={setPublicProfile} />
                     </div>
 
                     {/* Telemetry */}
@@ -408,7 +419,7 @@ export default function SettingsPage() {
                           <p className="text-[11px] text-outline mt-0.5">서비스 개선을 위한 익명 사용 데이터를 공유합니다</p>
                         </div>
                       </div>
-                      <Toggle enabled={telemetrySharing} onChange={setTelemetrySharing} />
+                      <Toggle id="telemetry-sharing-toggle" enabled={telemetrySharing} onChange={setTelemetrySharing} />
                     </div>
                   </div>
 
