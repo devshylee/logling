@@ -47,53 +47,28 @@ export default function RepositoriesPage() {
     if (sessionStatus === 'unauthenticated') router.push('/login');
   }, [sessionStatus, router]);
 
-  // Fetch synced repos from Logling DB (with analysis stats aggregated client-side)
+  // Fetch synced repos from Logling DB (Aggregated via Supabase RPC)
   const fetchRepos = useCallback(async () => {
     if (!userId) return;
     setLoading(true);
     try {
-      // 1) GitHub 저장소 동기화 (기존 API 재사용)
+      // 1) Sync repositories with GitHub (Existing API)
       await fetch('/api/repositories');
 
-      // 2) DB에 저장된 저장소 목록과 모든 분석 데이터를 한 번에 가져오기
-      const [{ data: dbRepos }, { data: allAnalyses }] = await Promise.all([
-        supabase
-          .from('repositories')
-          .select('*')
-          .eq('user_id', userId)
-          .order('created_at', { ascending: false }),
-        supabase
-          .from('analyses')
-          .select('id, xp_awarded, impact_score, ai_result, created_at, commit_sha, commit_message, status, completed_at, error_message, repository_id, user_id')
-          .eq('user_id', userId)
-          .eq('status', 'completed')
-          .order('created_at', { ascending: false })
-      ]);
-
-      if (!dbRepos) return;
-
-      // 3) 클라이언트 측에서 분석 통계 집계
-      const analysesByRepo = (allAnalyses ?? []).reduce((acc, analysis) => {
-        const repoId = analysis.repository_id;
-        if (!acc[repoId]) {
-          acc[repoId] = [];
-        }
-        acc[repoId].push(analysis);
-        return acc;
-      }, {} as Record<string, Analysis[]>);
-
-      const reposWithStats: RepoWithStats[] = dbRepos.map((repo) => {
-        const repoAnalyses = analysesByRepo[repo.id] ?? [];
-        const totalXp = repoAnalyses.reduce((sum, a) => sum + (a.xp_awarded ?? 0), 0);
-        return {
-          ...repo,
-          analysisCount: repoAnalyses.length,
-          totalXp,
-          latestAnalysis: repoAnalyses[0] ?? null,
-        };
+      // 2) Fetch pre-aggregated repository stats via RPC
+      // This solves the N+1 problem and high memory usage by aggregating on the DB side.
+      const { data, error } = await supabase.rpc('get_repositories_with_stats', {
+        p_user_id: userId
       });
 
-      setRepos(reposWithStats);
+      if (error) {
+        console.error('[fetchRepos] RPC failed:', error);
+        // Fallback to empty list or handle accordingly
+        setRepos([]);
+        return;
+      }
+
+      setRepos((data ?? []) as RepoWithStats[]);
     } catch (e) {
       console.error('Failed to fetch repos', e);
     } finally {

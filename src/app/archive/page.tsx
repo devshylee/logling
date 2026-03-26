@@ -100,7 +100,8 @@ export default function ArchivePage() {
   const { data: session, status: sessionStatus } = useSession();
   const router = useRouter();
 
-  const [analyses, setAnalyses] = useState<Analysis[]>([]);
+  const [analysesStats, setAnalysesStats] = useState<{ id: string; created_at: string; xp_awarded: number }[]>([]);
+  const [recentAnalyses, setRecentAnalyses] = useState<Analysis[]>([]);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [hoveredDay, setHoveredDay] = useState<{ date: string; count: number; xp: number } | null>(null);
@@ -118,19 +119,27 @@ export default function ArchivePage() {
     const oneYearAgo = new Date();
     oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
 
-    const [{ data: profileData }, { data: analysesData }] = await Promise.all([
+    const [{ data: profileData }, { data: statsData }, { data: recentData }] = await Promise.all([
       supabase.from('user_profiles').select('*').eq('id', userId).single(),
+      supabase
+        .from('analyses')
+        .select('id, created_at, xp_awarded')
+        .eq('user_id', userId)
+        .eq('status', 'completed')
+        .gte('created_at', oneYearAgo.toISOString())
+        .order('created_at', { ascending: false }),
       supabase
         .from('analyses')
         .select('id, created_at, xp_awarded, impact_score, ai_result, commit_sha, commit_message, repository_id, user_id, status, completed_at, error_message')
         .eq('user_id', userId)
         .eq('status', 'completed')
-        .gte('created_at', oneYearAgo.toISOString())
-        .order('created_at', { ascending: false }),
+        .order('created_at', { ascending: false })
+        .limit(25),
     ]);
 
     if (profileData) setProfile(profileData as UserProfile);
-    if (analysesData) setAnalyses(analysesData as Analysis[]);
+    if (statsData) setAnalysesStats(statsData);
+    if (recentData) setRecentAnalyses(recentData as Analysis[]);
     setLoading(false);
   }, [userId]);
 
@@ -141,7 +150,7 @@ export default function ArchivePage() {
     const dateCountMap: Record<string, number> = {};
     const dateXpMap: Record<string, number> = {};
 
-    for (const a of analyses) {
+    for (const a of analysesStats) {
       const date = a.created_at.slice(0, 10);
       dateCountMap[date] = (dateCountMap[date] ?? 0) + 1;
       dateXpMap[date] = (dateXpMap[date] ?? 0) + (a.xp_awarded ?? 0);
@@ -150,7 +159,7 @@ export default function ArchivePage() {
     const activeSet = new Set(Object.keys(dateCountMap));
     const grid = buildHeatmapGrid();
     const streaks = calcStreaks(activeSet);
-    const totalXp = analyses.reduce((s, a) => s + (a.xp_awarded ?? 0), 0);
+    const totalXp = analysesStats.reduce((s, a) => s + (a.xp_awarded ?? 0), 0);
 
     // Find which columns to display month labels
     const monthPositions: { label: string; col: number }[] = [];
@@ -166,7 +175,7 @@ export default function ArchivePage() {
     });
 
     return { dateCountMap, dateXpMap, activeSet, grid, streaks, totalXp, monthPositions };
-  }, [analyses]);
+  }, [analysesStats]);
 
   // ── Loading ─────────────────────────────────────────────────────────────
   if (sessionStatus === 'loading' || loading) {
@@ -177,7 +186,7 @@ export default function ArchivePage() {
     );
   }
 
-  const recentAnalyses = analyses.slice(0, 25);
+
 
   // ── Render ───────────────────────────────────────────────────────────────
   return (
@@ -214,7 +223,7 @@ export default function ArchivePage() {
               },
               {
                 label: '총 분석 수',
-                value: `${analyses.length}건`,
+                value: `${analysesStats.length}건`,
                 icon: BookOpen,
                 colorText: 'text-primary-container',
                 colorBg: 'bg-primary-container/10 border-primary-container/20',
