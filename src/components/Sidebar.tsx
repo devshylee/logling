@@ -5,7 +5,7 @@ import { cn } from '@/lib/utils';
 import {
   Home,
   Database,
-  Archive,
+  CalendarDays,
   Settings,
   ShieldCheck,
   HelpCircle,
@@ -19,7 +19,7 @@ import { getLevelFromXP } from '@/types';
 const navItems = [
   { icon: Home, label: '홈', href: '/', id: 'home' },
   { icon: Database, label: '내 저장소', href: '/repositories', id: 'repos' },
-  { icon: Archive, label: '분석 도감', href: '/archive', id: 'archive' },
+  { icon: CalendarDays, label: '성장 기록', href: '/archive', id: 'archive' },
   { icon: Settings, label: '기지 설정', href: '/settings', id: 'settings' },
 ];
 
@@ -64,7 +64,7 @@ export default function Sidebar({ activeId, profile }: { activeId: string; profi
         </nav>
 
         <a
-          href="/repositories"
+          href="/"
           className="w-full mt-8 py-3 bg-primary-container text-white rounded-xl font-bold uppercase tracking-tighter hover:shadow-[0_0_15px_rgba(0,112,243,0.4)] transition-all flex items-center justify-center gap-2 active:scale-95"
         >
           <PlusCircle size={16} />
