@@ -84,6 +84,42 @@ const MASKING_RULES: MaskingRule[] = [
     pattern: /(?:host|server|endpoint|url|address)\s*[:=]\s*["']?((?:\d{1,3}\.){3}\d{1,3})["']?/gi,
     replacement: (match: string, ip: string) => match.replace(ip, '[MASKED_DATA:IP]'),
   },
+  // Korean Resident Registration Number (주민등록번호)
+  {
+    name: 'korean_rrn',
+    pattern: /\b\d{2}(?:0[1-9]|1[0-2])(?:0[1-9]|[12]\d|3[01])[-.\s]?[1-8]\d{6}\b/g,
+    replacement: '[MASKED_DATA:RRN]',
+  },
+  // Korean Driver's License (운전면허면허: 보통 11-11-111111-11 등)
+  {
+    name: 'korean_drivers_license',
+    pattern: /\b\d{2}[-\s]?\d{2}[-\s]?\d{6}[-\s]?\d{2}\b/g,
+    replacement: '[MASKED_DATA:DRIVERS_LICENSE]',
+  },
+  // Passport Numbers (여권번호 - 한국은 M,S,R,O,G,D 로 시작하고 뒤에 숫자 8자리, 혹은 영문자 2개 숫자 7자리)
+  {
+    name: 'korean_passport',
+    pattern: /\b[a-zA-Z]{1,2}[-\s]?\d{7,8}\b/g,
+    replacement: '[MASKED_DATA:PASSPORT]',
+  },
+  // Credit Card Numbers (기본적인 16자리 형태: 1234-1234-1234-1234)
+  {
+    name: 'credit_card',
+    pattern: /\b(?:\d{4}[-\s]?){3}\d{4}\b/g,
+    replacement: '[MASKED_DATA:CREDIT_CARD]',
+  },
+  // Slack Tokens
+  {
+    name: 'slack_token',
+    pattern: /xox[baprs]-[0-9a-zA-Z]{10,48}/g,
+    replacement: '[REDACTED:SLACK_TOKEN]',
+  },
+  // Stripe Keys
+  {
+    name: 'stripe_key',
+    pattern: /(?:sk|pk)_(?:test|live)_[0-9a-zA-Z]{24}/g,
+    replacement: '[REDACTED:STRIPE_KEY]',
+  },
 ];
 
 /**

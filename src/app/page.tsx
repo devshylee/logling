@@ -10,7 +10,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { cn } from '@/lib/utils';
 import { useGithubIntegration } from '@/features/analysis/hooks/useGithubIntegration';
-import { useAnalysis } from '@/features/analysis/hooks/useAnalysis';
+import { useAnalysis, GENERATION_STEPS } from '@/features/analysis/hooks/useAnalysis';
 
 export default function Home() {
   const { data: session } = useSession();
@@ -39,6 +39,7 @@ export default function Home() {
 
   const {
     generating,
+    generationStepIndex,
     generatedMarkdown,
     errorMsg: analysisError,
     handleGenerate
@@ -321,7 +322,7 @@ export default function Home() {
                 disabled={!isReady || generating}
                 className="w-full mt-2 py-4 bg-gradient-to-r from-primary-container to-[#005bb5] text-white rounded-xl font-headline font-bold uppercase tracking-widest hover:shadow-[0_0_20px_rgba(0,112,243,0.4)] transition-all disabled:opacity-50 flex items-center justify-center gap-2 active:scale-[0.98]"
               >
-                {generating ? <><Loader2 className="animate-spin" size={18} /> 분석 중...</> : <><Wand2 size={18} /> 블로그 글 생성하기</>}
+                {generating ? <><Loader2 className="animate-spin" size={18} /> {GENERATION_STEPS[generationStepIndex]}</> : <><Wand2 size={18} /> 블로그 글 생성하기</>}
               </button>
             </div>
           </div>
@@ -362,7 +363,7 @@ export default function Home() {
               )}
 
               {generating ? (
-                <div className="absolute inset-0 flex flex-col items-center justify-center">
+                <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#0a0a0a]/90 backdrop-blur-sm z-20">
                   <motion.div
                     animate={{ rotate: 360 }}
                     transition={{ duration: 8, repeat: Infinity, ease: 'linear' }}
@@ -370,8 +371,21 @@ export default function Home() {
                   >
                     <Wand2 size={64} className="text-primary-container opacity-50" />
                   </motion.div>
-                  <p className="text-[#e5e2e1] font-headline font-bold text-xl animate-pulse">AI 마법사가 코드를 읽고 있습니다...</p>
-                  <p className="text-outline text-xs mt-3 tracking-widest uppercase">작업량이 많을 경우 최대 1분이 소요될 수 있습니다</p>
+                  <p className="text-[#e5e2e1] font-headline font-bold text-xl mb-8">AI 마법사가 코드를 읽고 있습니다</p>
+                  
+                  <div className="flex flex-col gap-4 w-72 bg-surface-low p-6 rounded-2xl border border-outline-variant/10">
+                    {GENERATION_STEPS.map((step, idx) => {
+                      const isActive = idx === generationStepIndex;
+                      const isPast = idx < generationStepIndex;
+                      return (
+                        <div key={idx} className={cn("flex items-center gap-3 text-sm font-bold transition-all duration-300", isActive ? "text-primary-container" : isPast ? "text-[#e5e2e1]" : "text-outline/40")}>
+                          {isPast ? <Check size={16} className="text-[#2ff801]" /> : isActive ? <Loader2 size={16} className="animate-spin" /> : <div className="w-4 h-4 rounded-full border-2 border-outline/20" />}
+                          <span className={cn(isActive && "animate-pulse")}>{step}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <p className="text-outline text-[10px] mt-6 tracking-widest uppercase">작업량이 많을 경우 최대 1분이 소요될 수 있습니다</p>
                 </div>
               ) : generatedMarkdown ? (
                 <div className="prose prose-invert prose-p:text-[#e5e2e1] prose-headings:text-[#e5e2e1] prose-a:text-primary-container prose-pre:bg-[#131313] prose-pre:border prose-pre:border-outline-variant/10 prose-th:text-[#e5e2e1] prose-td:text-[#e5e2e1] prose-table:border-collapse prose-th:border prose-th:border-outline-variant/20 prose-td:border prose-td:border-outline-variant/20 prose-th:p-2 prose-td:p-2 max-w-none">

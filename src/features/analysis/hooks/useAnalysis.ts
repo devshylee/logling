@@ -17,8 +17,17 @@ interface GenerationBody {
   temperature: number;
 }
 
+export const GENERATION_STEPS = [
+  'Git 로그 수집 중...',
+  '코드 보안 검사 중...',
+  '코드 컨텍스트 매핑 중...',
+  'AI 기술 블로그 작성 중...',
+  '마크다운 구조화 및 최종 검토 중...'
+];
+
 export function useAnalysis() {
   const [generating, setGenerating] = useState(false);
+  const [generationStepIndex, setGenerationStepIndex] = useState(0);
   const [generatedMarkdown, setGeneratedMarkdown] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
 
@@ -43,6 +52,18 @@ export function useAnalysis() {
     }
 
     setGenerating(true);
+    setGenerationStepIndex(0);
+
+    let currentIndex = 0;
+    const intervalId = setInterval(() => {
+      currentIndex++;
+      if (currentIndex < GENERATION_STEPS.length) {
+        setGenerationStepIndex(currentIndex);
+      } else {
+        clearInterval(intervalId);
+      }
+    }, 2500); // 2.5초마다 다음 단계로 진행 (시뮬레이션)
+
     try {
       const payload = {
         sourceType,
@@ -73,12 +94,15 @@ export function useAnalysis() {
       const message = err instanceof Error ? err.message : '네트워크 오류가 발생했습니다.';
       setErrorMsg(message);
     } finally {
+      clearInterval(intervalId); // 타이머 정리
       setGenerating(false);
+      setGenerationStepIndex(0); // 초기화
     }
   };
 
   return {
     generating,
+    generationStepIndex,
     generatedMarkdown,
     setGeneratedMarkdown,
     errorMsg,
