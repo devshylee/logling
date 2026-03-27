@@ -1,6 +1,6 @@
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
-import { createAdminClient, getUserProfile, createAnalysisJob } from '@/lib/supabase';
+import { createAdminClient, getUserProfile, createAnalysisJob, updateAnalysis } from '@/lib/supabase';
 import { fetchCommitDiff } from '@/features/analysis/githubFetcher';
 import { getAnalysisProvider } from '@/features/analysis/analysisProvider';
 import { processAnalysisJob } from '@/features/leveling/xpCalculator';
@@ -10,8 +10,8 @@ const DAILY_LIMIT = 50;
 
 export async function POST(req: Request) {
   const session = await getServerSession(authOptions);
-  if (!session?.user?.email) {
-    return Response.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!session?.user?.id) {
+    return Response.json({ error: '인증 정보가 부족합니다. 다시 로그인해주세요.' }, { status: 401 });
   }
 
   let body: {
@@ -28,7 +28,7 @@ export async function POST(req: Request) {
     return Response.json({ error: 'Invalid JSON body' }, { status: 400 });
   }
 
-  const accessToken = (session as any).accessToken as string;
+  const accessToken = session.accessToken;
   if (!accessToken) {
     return Response.json({ error: 'GitHub access token not available' }, { status: 403 });
   }
@@ -41,16 +41,7 @@ export async function POST(req: Request) {
 
   const admin = createAdminClient();
 
-  // Resolve user ID from email
-  const { data: profileData } = await admin
-    .from('user_profiles')
-    .select('id, xp, level, mascot_personality')
-    .eq('github_username', session.user.email) // Note: email might not equal GH username — we match via 'id' from token.sub
-    .single();
-
-  // Better: look up by session user id stored in token
-  // For now we use email as fallback; the NextAuth route stores id as token.sub
-  const userId = (session.user as any).id as string;
+  const userId = session.user.id;
   if (!userId) {
     return Response.json({ error: 'User ID not found in session' }, { status: 401 });
   }
@@ -93,8 +84,11 @@ export async function POST(req: Request) {
     return Response.json({ jobId: analysisJob.id, status: 'completed', result: analysisJob.ai_result });
   }
 
+  // Mark as processing before returning to ensure state integrity
+  await updateAnalysis(admin, analysisJob.id, { status: 'processing' });
+
   // Fire background processing — don't await
-  // This returns immediately to the client with 'pending'
+  // This returns immediately to the client with 'processing'
   setImmediate(async () => {
     try {
       const diff = await fetchCommitDiff(accessToken, repoFullName, commitSha);
@@ -109,12 +103,16 @@ export async function POST(req: Request) {
       });
     } catch (error) {
       console.error('[analyze/route] Background job failed:', error);
+      await updateAnalysis(admin, analysisJob.id, { 
+        status: 'failed', 
+        error_message: error instanceof Error ? error.message : 'Unknown background error' 
+      });
     }
   });
 
   return Response.json({
     jobId: analysisJob.id,
-    status: 'pending',
+    status: 'processing',
     message: '🔍 Logling이 분석을 시작했어요! 잠시 후 결과가 나타납니다.',
   });
 }

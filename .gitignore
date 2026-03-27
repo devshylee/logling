@@ -50,3 +50,6 @@ yarn-error.log*
 # Logling specific
 /error-log.txt
 /tmp/
+/document/
+/.agents/
+/supabase/

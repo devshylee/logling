@@ -5,7 +5,7 @@ import { cn } from '@/lib/utils';
 import {
   Home,
   Database,
-  Archive,
+  CalendarDays,
   Settings,
   ShieldCheck,
   HelpCircle,
@@ -14,13 +14,13 @@ import {
 } from 'lucide-react';
 import { motion } from 'motion/react';
 import type { UserProfile } from '@/types';
-import { getLevelFromXP } from '@/types';
+import { getLevelFromXP } from '@/features/leveling/xpCalculator';
 
 const navItems = [
   { icon: Home, label: '홈', href: '/', id: 'home' },
   { icon: Database, label: '내 저장소', href: '/repositories', id: 'repos' },
-  { icon: Archive, label: '분석 도감', href: '/archive', id: 'archive' },
-  { icon: Settings, label: '기지 설정', href: '/settings', id: 'settings' },
+  { icon: CalendarDays, label: '성장 기록', href: '/archive', id: 'archive' },
+  { icon: Settings, label: '설정', href: '/settings', id: 'settings' },
 ];
 
 export default function Sidebar({ activeId, profile }: { activeId: string; profile?: UserProfile | null }) {
@@ -28,7 +28,7 @@ export default function Sidebar({ activeId, profile }: { activeId: string; profi
   const nickname = profile?.nickname ?? 'Developer';
 
   return (
-    <aside className="fixed left-0 top-0 h-full flex flex-col z-40 bg-[#131313] w-64 border-r border-[#414754]/15 font-headline text-xs font-medium">
+    <aside className="fixed left-0 top-0 h-full flex flex-col z-40 bg-surface-low w-64 border-r border-outline-variant/10 font-headline text-xs font-medium">
       <div className="p-6">
         <div className="flex items-center gap-3 mb-10">
           <div className="w-10 h-10 rounded-xl bg-primary-container flex items-center justify-center shadow-[0_0_20px_rgba(0,112,243,0.3)]">
@@ -52,8 +52,8 @@ export default function Sidebar({ activeId, profile }: { activeId: string; profi
                 className={cn(
                   'flex items-center gap-3 pl-4 py-3 transition-all rounded-lg group',
                   isActive
-                    ? 'bg-[#2a2a2a] text-[#0070f3] rounded-r-full mr-4 shadow-[inset_4px_0_0_#0070f3]'
-                    : 'text-[#8b90a0] hover:text-[#e5e2e1] hover:bg-[#1c1b1b]'
+                    ? 'bg-primary-container/10 text-primary-container rounded-r-full mr-4 shadow-[inset_4px_0_0_currentColor]'
+                    : 'text-outline hover:text-[#e5e2e1] hover:bg-surface-high'
                 )}
               >
                 <item.icon size={18} className={cn(isActive && 'fill-current')} />
@@ -64,7 +64,7 @@ export default function Sidebar({ activeId, profile }: { activeId: string; profi
         </nav>
 
         <a
-          href="/repositories"
+          href="/"
           className="w-full mt-8 py-3 bg-primary-container text-white rounded-xl font-bold uppercase tracking-tighter hover:shadow-[0_0_15px_rgba(0,112,243,0.4)] transition-all flex items-center justify-center gap-2 active:scale-95"
         >
           <PlusCircle size={16} />
@@ -73,11 +73,11 @@ export default function Sidebar({ activeId, profile }: { activeId: string; profi
       </div>
 
       <div className="mt-auto p-6 space-y-1">
-        <a className="flex items-center gap-3 text-[#8b90a0] pl-4 py-3 hover:text-[#e5e2e1] transition-all" href="#">
+        <a className="flex items-center gap-3 text-outline pl-4 py-3 hover:text-[#e5e2e1] transition-all" href="#">
           <ShieldCheck size={18} />
           <span>Security</span>
         </a>
-        <a className="flex items-center gap-3 text-[#8b90a0] pl-4 py-3 hover:text-[#e5e2e1] transition-all" href="#">
+        <a className="flex items-center gap-3 text-outline pl-4 py-3 hover:text-[#e5e2e1] transition-all" href="#">
           <HelpCircle size={18} />
           <span>Support</span>
         </a>

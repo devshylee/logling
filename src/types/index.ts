@@ -1,6 +1,5 @@
 // src/types/index.ts — Logling shared TypeScript types
 
-export type MascotPersonality = 'witty' | 'professional' | 'aggressive';
 export type AnalysisStatus = 'pending' | 'processing' | 'completed' | 'failed';
 
 export type UserProfile = {
@@ -10,7 +9,6 @@ export type UserProfile = {
   avatar_url: string;
   level: number;
   xp: number;
-  mascot_personality: MascotPersonality;
   public_profile: boolean;
   telemetry_sharing: boolean;
   created_at: string;
@@ -76,6 +74,7 @@ export type GitHubRepo = {
   updated_at: string;
   stargazers_count: number;
   forks_count: number;
+  default_branch: string;
 };
 
 export type GitHubCommit = {
@@ -89,17 +88,8 @@ export type GitHubCommit = {
   };
 };
 
-// XP constants
-export const XP_PER_LEVEL = 10_000;
-
-export function getLevelFromXP(xp: number): number {
-  return Math.floor(xp / XP_PER_LEVEL) + 1;
-}
-
-export function getLevelProgress(xp: number): number {
-  return (xp % XP_PER_LEVEL) / XP_PER_LEVEL;
-}
-
-export function getXpForImpact(impactScore: number): number {
-  return Math.round(impactScore * 10);
-}
+export type GitHubProfile = {
+  login: string;
+  name: string | null;
+  avatar_url: string;
+};

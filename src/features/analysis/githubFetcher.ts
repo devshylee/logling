@@ -18,6 +18,13 @@ const EXCLUDED_FILE_PATTERNS = [
   /build\//,
   /\.next\//,
   /node_modules\//,
+  /\.map$/i,
+  /\.wasm$/i,
+  /\.exe$/i,
+  /\.dll$/i,
+  /\.bin$/i,
+  /\.pyc$/i,
+  /config\.json$/i,
 ];
 
 function createGithubHeaders(accessToken: string) {
@@ -70,6 +77,25 @@ export async function fetchRepoCommits(
 }
 
 /**
+ * Fetches branches for a specific repository.
+ */
+export async function fetchRepoBranches(
+  accessToken: string,
+  repoFullName: string
+): Promise<{ name: string }[]> {
+  const response = await fetch(
+    `${GITHUB_API_BASE}/repos/${repoFullName}/branches?per_page=100`,
+    { headers: createGithubHeaders(accessToken) }
+  );
+
+  if (!response.ok) {
+    throw new Error(`GitHub API error fetching branches: ${response.status}`);
+  }
+
+  return await response.json();
+}
+
+/**
  * Fetches the raw diff for a specific commit SHA.
  * Filters out non-code files and truncates if too large.
  */
@@ -97,6 +123,33 @@ export async function fetchCommitDiff(
 }
 
 /**
+ * Fetches the raw diff between two points (commits, branches, or tags) using the compare endpoint.
+ */
+export async function fetchCompareDiff(
+  accessToken: string,
+  repoFullName: string,
+  base: string,
+  head: string
+): Promise<string> {
+  const response = await fetch(
+    `${GITHUB_API_BASE}/repos/${repoFullName}/compare/${base}...${head}`,
+    {
+      headers: {
+        ...createGithubHeaders(accessToken),
+        Accept: 'application/vnd.github.diff',
+      },
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error(`GitHub API error fetching compare diff: ${response.status}`);
+  }
+
+  const rawDiff = await response.text();
+  return filterAndTruncateDiff(rawDiff);
+}
+
+/**
  * Removes excluded files from the diff and truncates if too long.
  */
 function filterAndTruncateDiff(rawDiff: string): string {
@@ -104,8 +157,8 @@ function filterAndTruncateDiff(rawDiff: string): string {
   const sections = rawDiff.split(/(?=^diff --git )/m);
 
   const filteredSections = sections.filter((section) => {
-    // Extract filename from diff header line
-    const match = section.match(/^diff --git a\/(.*?) b\//m);
+    // Extract filename from diff header line (handles paths with spaces and multiple variants)
+    const match = section.match(/^diff --git [ab]\/(.*?) [ab]\/(.*?)$/m);
     if (!match) return false;
     const filename = match[1];
     return !EXCLUDED_FILE_PATTERNS.some((pattern) => pattern.test(filename));

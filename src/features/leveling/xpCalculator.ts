@@ -1,6 +1,20 @@
 import type { UserProfile } from '@/types';
-import { getLevelFromXP, getXpForImpact } from '@/types';
 import { updateAnalysis, upsertTechSkill, createAdminClient } from '@/lib/supabase';
+
+// XP constants
+export const XP_PER_LEVEL = 10_000;
+
+export function getLevelFromXP(xp: number): number {
+  return Math.floor(xp / XP_PER_LEVEL) + 1;
+}
+
+export function getLevelProgress(xp: number): number {
+  return (xp % XP_PER_LEVEL) / XP_PER_LEVEL;
+}
+
+export function getXpForImpact(impactScore: number): number {
+  return Math.round(impactScore * 10);
+}
 
 /**
  * Awards XP to a user for a completed analysis.
@@ -54,8 +68,6 @@ export async function processAnalysisJob(params: {
   const { analysisId, userId, userProfile, diff, commitMessage, analyzeCommit } = params;
   const admin = createAdminClient();
 
-  // Mark as processing
-  await updateAnalysis(admin, analysisId, { status: 'processing' });
 
   try {
     const result = await analyzeCommit(diff, commitMessage);

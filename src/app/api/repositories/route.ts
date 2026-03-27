@@ -1,7 +1,7 @@
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
-import { createAdminClient, upsertRepository } from '@/lib/supabase';
-import { fetchUserRepositories } from '@/features/analysis/githubFetcher';
+import { createAdminClient } from '@/lib/supabase';
+import { syncRepositories } from '@/features/analysis/services/repositorySyncer';
 
 export async function GET(req: Request) {
   const session = await getServerSession(authOptions);
@@ -9,35 +9,24 @@ export async function GET(req: Request) {
     return Response.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const userId = (session.user as any).id as string;
-  const accessToken = (session as any).accessToken as string;
+  const userId = session.user.id;
+  const accessToken = session.accessToken;
 
   if (!accessToken) {
     return Response.json({ error: 'GitHub access token not available' }, { status: 403 });
   }
 
+  const { searchParams } = new URL(req.url);
+  const forceSync = searchParams.get('force') === 'true';
+
   try {
-    const githubRepos = await fetchUserRepositories(accessToken);
     const admin = createAdminClient();
+    const result = await syncRepositories(admin, userId, accessToken, forceSync);
 
-    // Sync repos to Supabase
-    await Promise.all(
-      githubRepos.map((repo) =>
-        upsertRepository(admin, {
-          user_id: userId,
-          github_repo_id: repo.id,
-          full_name: repo.full_name,
-          description: repo.description,
-          language: repo.language,
-          private: repo.private,
-          last_synced_at: new Date().toISOString(),
-        })
-      )
-    );
-
-    return Response.json({ repos: githubRepos });
+    return Response.json(result);
   } catch (error: unknown) {
     console.error('[/api/repositories] Error:', error);
-    return Response.json({ error: 'Failed to fetch repositories' }, { status: 500 });
+    const message = error instanceof Error ? error.message : 'Failed to fetch repositories';
+    return Response.json({ error: message }, { status: 500 });
   }
 }

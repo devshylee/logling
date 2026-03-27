@@ -26,7 +26,7 @@ export default function RootLayout({
   return (
     <html lang="en" className="dark">
       <body className={cn(
-        "min-h-screen bg-[#131313] text-[#e5e2e1] font-sans antialiased",
+        "min-h-screen bg-surface text-foreground font-sans antialiased",
         inter.variable,
         spaceGrotesk.variable
       )}>
