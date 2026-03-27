@@ -15,9 +15,9 @@ import { supabase } from '@/lib/supabase';
 import { cn } from '@/lib/utils';
 
 type RepoWithStats = Repository & {
-  analysisCount: number;
-  totalXp: number;
-  latestAnalysis: Analysis | null;
+  analysis_count: number;
+  total_xp: number;
+  latest_analysis: Analysis | null;
 };
 
 function ImpactColor(score: number) {
@@ -243,10 +243,10 @@ export default function RepositoriesPage() {
                       {/* Analysis count badge */}
                       <span className={cn(
                         'flex items-center gap-1 text-[10px] font-bold',
-                        repo.analysisCount > 0 ? 'text-[#2ff801]' : 'text-outline'
+                        repo.analysis_count > 0 ? 'text-[#2ff801]' : 'text-outline'
                       )}>
                         <BookOpen size={10} />
-                        {repo.analysisCount}건
+                        {repo.analysis_count}건
                       </span>
                     </div>
                   </motion.button>
@@ -281,11 +281,11 @@ export default function RepositoriesPage() {
                     <div className="flex items-center gap-2 flex-wrap justify-end">
                       <span className="px-3 py-1.5 bg-[#2ff801]/10 border border-[#2ff801]/20 rounded-full text-[11px] font-bold text-[#2ff801] flex items-center gap-1.5">
                         <Zap size={11} />
-                        +{selectedRepo.totalXp.toLocaleString()} XP 획득
+                        +{selectedRepo.total_xp.toLocaleString()} XP 획득
                       </span>
                       <span className="px-3 py-1.5 bg-primary-container/10 border border-primary-container/20 rounded-full text-[11px] font-bold text-primary-container flex items-center gap-1.5">
                         <BookOpen size={11} />
-                        {selectedRepo.analysisCount}건 분석 완료
+                        {selectedRepo.analysis_count}건 분석 완료
                       </span>
                       <a
                         href={`/?repo=${encodeURIComponent(selectedRepo.full_name)}`}
