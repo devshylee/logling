@@ -175,15 +175,19 @@ export default function SettingsPage() {
   const deleteAccount = async () => {
     if (!userId) return;
     setSaving(true);
-    const { error } = await supabase
-      .from('user_profiles')
-      .delete()
-      .eq('id', userId);
-    if (error) {
-      setSaving(false);
-      showToast('계정 삭제에 실패했습니다.', false);
-    } else {
+    try {
+      const { error } = await supabase
+        .from('user_profiles')
+        .delete()
+        .eq('id', userId);
+
+      if (error) throw error;
+
       await signOut({ callbackUrl: '/' });
+    } catch (err) {
+      console.error('계정 삭제 실패:', err);
+      showToast('계정 삭제에 실패했습니다.', false);
+      setSaving(false);
     }
   };
 
