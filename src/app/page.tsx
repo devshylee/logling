@@ -2,18 +2,20 @@
 
 import React, { useState, useRef } from 'react';
 import { useSession } from 'next-auth/react';
+import Link from 'next/link';
 import Sidebar from '@/components/Sidebar';
 import TopBar from '@/components/TopBar';
 import { motion, AnimatePresence } from 'motion/react';
-import { Github, Upload, Wand2, Loader2, FileText, Settings2, Copy, Check, Calendar, History, GitBranch } from 'lucide-react';
+import { Github, Upload, Wand2, Loader2, FileText, Settings2, Copy, Check, Calendar, History, GitBranch, Zap } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { cn } from '@/lib/utils';
 import { useGithubIntegration } from '@/features/analysis/hooks/useGithubIntegration';
-import { useAnalysis, GENERATION_STEPS } from '@/features/analysis/hooks/useAnalysis';
+import { useAnalysis } from '@/features/analysis/hooks/useAnalysis';
+import { useGenerationQuota } from '@/features/analysis/hooks/useGenerationQuota';
 
 export default function Home() {
-  const { data: session } = useSession();
+  const { data: session, status } = useSession();
   const [sourceType, setSourceType] = useState<'github' | 'manual'>('github');
   const [selectionMode, setSelectionMode] = useState<'commit' | 'range'>('commit');
 
@@ -22,7 +24,6 @@ export default function Home() {
   const [rawDiff, setRawDiff] = useState('');
   const [commitMessage, setCommitMessage] = useState('');
   const [promptInstruction, setPromptInstruction] = useState('');
-  const [temperature, setTemperature] = useState(0.7);
   const [copied, setCopied] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -39,28 +40,31 @@ export default function Home() {
 
   const {
     generating,
-    generationStepIndex,
     generatedMarkdown,
     errorMsg: analysisError,
     handleGenerate
   } = useAnalysis();
 
+  const { quota, loading: loadingQuota, refresh: refreshQuota } = useGenerationQuota();
+
   const errorMsg = githubError || analysisError;
 
   const onGenerate = () => {
-    handleGenerate({
-      sourceType,
-      selectedRepo,
-      selectedBranch,
-      selectedCommit,
-      selectionMode,
-      startDate,
-      endDate,
-      rawDiff,
-      commitMessage,
-      promptInstruction,
-      temperature
-    });
+    void (async () => {
+      await handleGenerate({
+        sourceType,
+        selectedRepo,
+        selectedBranch,
+        selectedCommit,
+        selectionMode,
+        startDate,
+        endDate,
+        rawDiff,
+        commitMessage,
+        promptInstruction
+      });
+      refreshQuota(); // re-fetch quota after generation attempt
+    })();
   };
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -136,10 +140,15 @@ export default function Home() {
             <div className="bg-surface-low rounded-2xl p-5 border border-outline-variant/10 flex flex-col gap-4">
               {sourceType === 'github' ? (
                 <>
-                  {!session ? (
+                  {status === 'loading' ? (
+                    <div className="text-center py-6">
+                      <Loader2 size={24} className="animate-spin text-primary-container mx-auto mb-3" />
+                      <p className="text-outline text-sm">사용자 정보 확인 중...</p>
+                    </div>
+                  ) : !session ? (
                     <div className="text-center py-6">
                       <p className="text-outline text-sm mb-3">GitHub 로그인이 필요합니다.</p>
-                      <a href="/login" className="inline-block px-4 py-2 bg-primary-container text-white rounded-lg text-sm font-bold">로그인 하기</a>
+                      <Link href="/login" className="inline-block px-4 py-2 bg-primary-container text-white rounded-lg text-sm font-bold">로그인 하기</Link>
                     </div>
                   ) : (
                     <>
@@ -147,7 +156,7 @@ export default function Home() {
                       <div>
                         <div className="flex justify-between items-center mb-2">
                           <label className="text-[10px] font-bold text-outline uppercase tracking-widest block">1. 저장소 선택</label>
-                          <button 
+                          <button
                             onClick={() => fetchRepos(true)}
                             disabled={loadingRepos}
                             className="text-[10px] font-bold text-primary-container hover:text-white transition-colors flex items-center gap-1 disabled:opacity-50"
@@ -305,27 +314,57 @@ export default function Home() {
                 />
               </div>
 
-              <div>
-                <label className="text-[10px] font-bold text-outline uppercase tracking-widest mb-2 flex justify-between">
-                  창의성 계수 <span>{temperature.toFixed(1)}</span>
-                </label>
-                <input
-                  type="range" min="0" max="1" step="0.1"
-                  value={temperature}
-                  onChange={(e) => setTemperature(parseFloat(e.target.value))}
-                  className="w-full accent-tertiary"
-                />
-              </div>
+              {/* Daily Quota Display */}
+              {!session && status !== 'loading' ? (
+                <div className="rounded-xl border border-outline-variant/10 bg-[#131313] px-4 py-3 flex flex-col items-center justify-center">
+                  <p className="text-[11px] text-outline font-bold mb-1">블로그 생성 기능은 로그인이 필요합니다</p>
+                  <Link href="/login" className="text-[10px] text-primary-container hover:underline">로그인 하러 가기 &rarr;</Link>
+                </div>
+              ) : loadingQuota || status === 'loading' ? (
+                <div className="rounded-xl border border-outline-variant/10 bg-[#131313] px-4 py-3 animate-pulse">
+                  <div className="h-3 w-32 bg-outline-variant/20 rounded-md mb-2" />
+                  <div className="h-1.5 w-full bg-outline-variant/20 rounded-full" />
+                </div>
+              ) : quota && quota.limit !== -1 ? (
+                <div className="rounded-xl border border-outline-variant/15 bg-[#131313] px-4 py-3 flex flex-col gap-1.5 shadow-inner">
+                  <div className="flex justify-between items-center">
+                    <div className="flex items-center gap-1.5 text-[10px] font-bold text-outline uppercase tracking-widest">
+                      <Zap size={10} className={cn(quota.remaining > 0 ? 'text-[#2ff801]' : 'text-red-400')} />
+                      오늘의 블로그 생성 횟수
+                    </div>
+                    <span className={cn('text-[11px] font-black', quota.remaining > 0 ? 'text-[#e5e2e1]' : 'text-red-400')}>
+                      {quota.used} / {quota.limit}
+                    </span>
+                  </div>
+                  {/* Progress bar */}
+                  <div className="w-full h-1.5 bg-outline-variant/20 rounded-full overflow-hidden">
+                    <div
+                      className={cn(
+                        'h-full rounded-full transition-all duration-500',
+                        quota.remaining === 0 ? 'bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.5)]' :
+                          quota.remaining === 1 ? 'bg-yellow-500 shadow-[0_0_8px_rgba(234,179,8,0.5)]' : 'bg-[#2ff801] shadow-[0_0_8px_rgba(47,248,1,0.3)]'
+                      )}
+                      style={{ width: `${Math.min(100, (quota.used / quota.limit) * 100)}%` }}
+                    />
+                  </div>
+                  {quota.remaining === 0 && (
+                    <p className="text-[9px] text-red-400 mt-0.5 animate-pulse">
+                      자정(UTC) 이후 초기화됩니다 · Pro 플랜으로 업그레이드하면 하루 {20}회
+                    </p>
+                  )}
+                </div>
+              ) : null}
 
               <button
                 onClick={onGenerate}
-                disabled={!isReady || generating}
+                disabled={!session || !isReady || generating || (quota?.remaining === 0 && quota?.limit !== -1)}
                 className="w-full mt-2 py-4 bg-gradient-to-r from-primary-container to-[#005bb5] text-white rounded-xl font-headline font-bold uppercase tracking-widest hover:shadow-[0_0_20px_rgba(0,112,243,0.4)] transition-all disabled:opacity-50 flex items-center justify-center gap-2 active:scale-[0.98]"
               >
-                {generating ? <><Loader2 className="animate-spin" size={18} /> {GENERATION_STEPS[generationStepIndex]}</> : <><Wand2 size={18} /> 블로그 글 생성하기</>}
+                {generating ? <><Loader2 className="animate-spin" size={18} /> 분석 중...</> : <><Wand2 size={18} /> 블로그 글 생성하기</>}
               </button>
             </div>
           </div>
+
 
           {/* Right Panel: Output Preview */}
           <div className="flex-1 bg-surface-high border border-outline-variant/10 rounded-3xl overflow-hidden flex flex-col shadow-2xl relative">
@@ -372,19 +411,7 @@ export default function Home() {
                     <Wand2 size={64} className="text-primary-container opacity-50" />
                   </motion.div>
                   <p className="text-[#e5e2e1] font-headline font-bold text-xl mb-8">AI 마법사가 코드를 읽고 있습니다</p>
-                  
-                  <div className="flex flex-col gap-4 w-72 bg-surface-low p-6 rounded-2xl border border-outline-variant/10">
-                    {GENERATION_STEPS.map((step, idx) => {
-                      const isActive = idx === generationStepIndex;
-                      const isPast = idx < generationStepIndex;
-                      return (
-                        <div key={idx} className={cn("flex items-center gap-3 text-sm font-bold transition-all duration-300", isActive ? "text-primary-container" : isPast ? "text-[#e5e2e1]" : "text-outline/40")}>
-                          {isPast ? <Check size={16} className="text-[#2ff801]" /> : isActive ? <Loader2 size={16} className="animate-spin" /> : <div className="w-4 h-4 rounded-full border-2 border-outline/20" />}
-                          <span className={cn(isActive && "animate-pulse")}>{step}</span>
-                        </div>
-                      );
-                    })}
-                  </div>
+
                   <p className="text-outline text-[10px] mt-6 tracking-widest uppercase">작업량이 많을 경우 최대 1분이 소요될 수 있습니다</p>
                 </div>
               ) : generatedMarkdown ? (

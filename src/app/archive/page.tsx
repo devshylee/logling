@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import Sidebar from '@/components/Sidebar';
 import TopBar from '@/components/TopBar';
 import { motion } from 'motion/react';
+import Link from 'next/link';
 import { Loader2, Flame, Zap, BookOpen, TrendingUp, CalendarDays } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import type { Analysis, UserProfile, AIResult } from '@/types';
@@ -21,14 +22,18 @@ import {
 
 // ── Main component ───────────────────────────────────────────────────────────
 
+let cachedProfile: UserProfile | null = null;
+let cachedStats: { id: string; created_at: string; xp_awarded: number }[] | null = null;
+let cachedRecent: Analysis[] | null = null;
+
 export default function ArchivePage() {
   const { data: session, status: sessionStatus } = useSession();
   const router = useRouter();
 
-  const [analysesStats, setAnalysesStats] = useState<{ id: string; created_at: string; xp_awarded: number }[]>([]);
-  const [recentAnalyses, setRecentAnalyses] = useState<Analysis[]>([]);
-  const [profile, setProfile] = useState<UserProfile | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [analysesStats, setAnalysesStats] = useState<{ id: string; created_at: string; xp_awarded: number }[]>(cachedStats || []);
+  const [recentAnalyses, setRecentAnalyses] = useState<Analysis[]>(cachedRecent || []);
+  const [profile, setProfile] = useState<UserProfile | null>(cachedProfile);
+  const [loading, setLoading] = useState(!cachedStats);
   const [hoveredDay, setHoveredDay] = useState<{ date: string; count: number; xp: number } | null>(null);
 
   const userId = session?.user?.id;
@@ -62,9 +67,18 @@ export default function ArchivePage() {
         .limit(25),
     ]);
 
-    if (profileData) setProfile(profileData as UserProfile);
-    if (statsData) setAnalysesStats(statsData);
-    if (recentData) setRecentAnalyses(recentData as Analysis[]);
+    if (profileData) {
+      setProfile(profileData as UserProfile);
+      cachedProfile = profileData as UserProfile;
+    }
+    if (statsData) {
+      setAnalysesStats(statsData);
+      cachedStats = statsData;
+    }
+    if (recentData) {
+      setRecentAnalyses(recentData as Analysis[]);
+      cachedRecent = recentData as Analysis[];
+    }
     setLoading(false);
   }, [userId]);
 
@@ -267,7 +281,7 @@ export default function ArchivePage() {
                 <BookOpen size={48} className="text-outline mx-auto mb-3" />
                 <p className="text-outline font-headline font-bold">분석 기록이 없습니다</p>
                 <p className="text-outline text-sm mt-1">
-                  <a href="/" className="text-primary-container hover:underline">홈에서 첫 번째 분석을 시작</a>해보세요!
+                  <Link href="/" className="text-primary-container hover:underline">홈에서 첫 번째 분석을 시작</Link>해보세요!
                 </p>
               </div>
             ) : (

@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import Link from 'next/link';
 import { Shield, LogOut } from 'lucide-react';
 import { useSession, signOut } from 'next-auth/react';
 
@@ -13,10 +14,10 @@ export default function TopBar() {
       <div className="flex items-center gap-8">
         <h1 className="text-2xl font-black tracking-tighter text-[#e5e2e1] font-headline uppercase">Logling</h1>
         <nav className="hidden md:flex gap-6 items-center font-headline font-bold tracking-tight text-sm uppercase">
-          <a className="text-[#8b90a0] hover:text-[#e5e2e1] transition-colors" href="/">홈</a>
-          <a className="text-[#8b90a0] hover:text-[#e5e2e1] transition-colors" href="/repositories">내 저장소</a>
-          <a className="text-[#8b90a0] hover:text-[#e5e2e1] transition-colors" href="/archive">도감</a>
-          <a className="text-[#8b90a0] hover:text-[#e5e2e1] transition-colors" href="/settings">설정</a>
+          <Link className="text-[#8b90a0] hover:text-[#e5e2e1] transition-colors" href="/">홈</Link>
+          <Link className="text-[#8b90a0] hover:text-[#e5e2e1] transition-colors" href="/repositories">내 저장소</Link>
+          <Link className="text-[#8b90a0] hover:text-[#e5e2e1] transition-colors" href="/archive">도감</Link>
+          <Link className="text-[#8b90a0] hover:text-[#e5e2e1] transition-colors" href="/settings">설정</Link>
         </nav>
       </div>
 
@@ -45,12 +46,12 @@ export default function TopBar() {
             </button>
           </div>
         ) : (
-          <a
+          <Link
             href="/login"
             className="px-4 py-2 bg-primary-container text-white rounded-lg text-sm font-bold hover:shadow-[0_0_15px_rgba(0,112,243,0.3)] transition-all"
           >
             로그인
-          </a>
+          </Link>
         )}
       </div>
     </header>

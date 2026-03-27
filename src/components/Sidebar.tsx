@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import Link from 'next/link';
 import { cn } from '@/lib/utils';
 import {
   Home,
@@ -46,7 +47,7 @@ export default function Sidebar({ activeId, profile }: { activeId: string; profi
           {navItems.map((item) => {
             const isActive = item.id === activeId;
             return (
-              <a
+              <Link
                 key={item.id}
                 href={item.href}
                 className={cn(
@@ -58,29 +59,29 @@ export default function Sidebar({ activeId, profile }: { activeId: string; profi
               >
                 <item.icon size={18} className={cn(isActive && 'fill-current')} />
                 <span>{item.label}</span>
-              </a>
+              </Link>
             );
           })}
         </nav>
 
-        <a
+        <Link
           href="/"
           className="w-full mt-8 py-3 bg-primary-container text-white rounded-xl font-bold uppercase tracking-tighter hover:shadow-[0_0_15px_rgba(0,112,243,0.4)] transition-all flex items-center justify-center gap-2 active:scale-95"
         >
           <PlusCircle size={16} />
           새로운 분석 시작
-        </a>
+        </Link>
       </div>
 
       <div className="mt-auto p-6 space-y-1">
-        <a className="flex items-center gap-3 text-outline pl-4 py-3 hover:text-[#e5e2e1] transition-all" href="#">
+        <Link className="flex items-center gap-3 text-outline pl-4 py-3 hover:text-[#e5e2e1] transition-all" href="#">
           <ShieldCheck size={18} />
           <span>Security</span>
-        </a>
-        <a className="flex items-center gap-3 text-outline pl-4 py-3 hover:text-[#e5e2e1] transition-all" href="#">
+        </Link>
+        <Link className="flex items-center gap-3 text-outline pl-4 py-3 hover:text-[#e5e2e1] transition-all" href="#">
           <HelpCircle size={18} />
           <span>Support</span>
-        </a>
+        </Link>
       </div>
     </aside>
   );

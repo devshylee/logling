@@ -2,6 +2,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import { GoogleGenAI } from '@google/genai';
 import { fetchCommitDiff, fetchCompareDiff } from '@/features/analysis/githubFetcher';
+import { checkAndIncrementGenerationLimit } from '@/features/analysis/services/generationRateLimiter';
 
 export async function POST(req: Request) {
   const session = await getServerSession(authOptions);
@@ -23,6 +24,28 @@ export async function POST(req: Request) {
 
     let finalDiff = '';
     let contextMessage = commitMessage || '';
+
+    // ─── Daily Generation Rate Limit Check ───────────────────────────────────
+    // Logged-in users are limited by their plan (free: 3/day, pro: 20/day, etc.)
+    // Non-authenticated users cannot proceed at all.
+    if (!session?.user?.id) {
+      return Response.json({ error: '로그인이 필요합니다.' }, { status: 401 });
+    }
+
+    const rateLimit = await checkAndIncrementGenerationLimit(session.user.id);
+    if (!rateLimit.allowed) {
+      const resetKst = new Date(rateLimit.resetAt);
+      return Response.json(
+        {
+          error: `오늘의 블로그 생성 횟수(${rateLimit.limit}회)를 모두 사용했습니다. ${resetKst.toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })} 이후 초기화됩니다.`,
+          code: 'RATE_LIMIT_EXCEEDED',
+          resetAt: rateLimit.resetAt,
+          limit: rateLimit.limit,
+        },
+        { status: 429 }
+      );
+    }
+    // ─────────────────────────────────────────────────────────────────────────
 
     if (sourceType === 'github') {
       if (!session) return Response.json({ error: 'GitHub 로그인이 필요합니다.' }, { status: 401 });

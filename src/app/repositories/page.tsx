@@ -3,6 +3,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import Sidebar from '@/components/Sidebar';
 import TopBar from '@/components/TopBar';
 import { motion, AnimatePresence } from 'motion/react';
@@ -26,13 +27,16 @@ function ImpactColor(score: number) {
   return 'text-outline';
 }
 
+let cachedReposData: RepoWithStats[] | null = null;
+let cachedProfile: UserProfile | null = null;
+
 export default function RepositoriesPage() {
   const { data: session, status: sessionStatus } = useSession();
   const router = useRouter();
 
-  const [repos, setRepos] = useState<RepoWithStats[]>([]);
-  const [profile, setProfile] = useState<UserProfile | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [repos, setRepos] = useState<RepoWithStats[]>(cachedReposData || []);
+  const [profile, setProfile] = useState<UserProfile | null>(cachedProfile);
+  const [loading, setLoading] = useState(!cachedReposData);
   const [search, setSearch] = useState('');
 
   const [selectedRepo, setSelectedRepo] = useState<RepoWithStats | null>(null);
@@ -71,6 +75,7 @@ export default function RepositoriesPage() {
       }
 
       setRepos((data ?? []) as RepoWithStats[]);
+      cachedReposData = (data ?? []) as RepoWithStats[];
     } catch (e) {
       console.error('Failed to fetch repos', e);
     } finally {
@@ -82,7 +87,10 @@ export default function RepositoriesPage() {
     if (userId) {
       fetchRepos();
       supabase.from('user_profiles').select('*').eq('id', userId).single().then(({ data }) => {
-        if (data) setProfile(data as UserProfile);
+        if (data) {
+          setProfile(data as UserProfile);
+          cachedProfile = data as UserProfile;
+        }
       });
     }
   }, [userId, fetchRepos]);
@@ -287,13 +295,13 @@ export default function RepositoriesPage() {
                         <BookOpen size={11} />
                         {selectedRepo.analysis_count}건 분석 완료
                       </span>
-                      <a
+                      <Link
                         href={`/?repo=${encodeURIComponent(selectedRepo.full_name)}`}
                         className="px-3 py-1.5 bg-primary-container text-white rounded-full text-[11px] font-bold flex items-center gap-1.5 hover:shadow-[0_0_15px_rgba(0,112,243,0.4)] transition-all"
                       >
                         <Wand2 size={11} />
                         이 저장소 분석하기
-                      </a>
+                      </Link>
                     </div>
                   </div>
                 </div>

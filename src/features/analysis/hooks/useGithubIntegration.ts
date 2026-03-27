@@ -4,9 +4,11 @@ import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import type { GitHubRepo, GitHubCommit } from '@/types';
 
+let cachedRepos: GitHubRepo[] | null = null;
+
 export function useGithubIntegration() {
   const { data: session } = useSession();
-  const [repos, setRepos] = useState<GitHubRepo[]>([]);
+  const [repos, setRepos] = useState<GitHubRepo[]>(cachedRepos || []);
   const [branches, setBranches] = useState<{ name: string }[]>([]);
   const [commits, setCommits] = useState<GitHubCommit[]>([]);
 
@@ -20,11 +22,19 @@ export function useGithubIntegration() {
   const [errorMsg, setErrorMsg] = useState('');
 
   const fetchRepos = async (force = false) => {
+    if (!force && cachedRepos !== null && cachedRepos.length > 0) {
+      setRepos(cachedRepos);
+      return;
+    }
+    
     setLoadingRepos(true);
     try {
       const res = await fetch(`/api/repositories${force ? '?force=true' : ''}`);
       const data = await res.json();
-      if (data.repos) setRepos(data.repos);
+      if (data.repos) {
+        setRepos(data.repos);
+        cachedRepos = data.repos;
+      }
     } catch {
       setErrorMsg('저장소를 불러오는데 실패했습니다.');
     } finally {
