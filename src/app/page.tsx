@@ -1,122 +1,65 @@
 'use client';
 
-import React, { useEffect, useState, useCallback, useRef } from 'react';
+import React, { useState, useRef } from 'react';
 import { useSession } from 'next-auth/react';
 import Sidebar from '@/components/Sidebar';
 import TopBar from '@/components/TopBar';
 import { motion, AnimatePresence } from 'motion/react';
-import { Github, Upload, Wand2, Search, SlidersHorizontal, Loader2, FileText, Settings2, Copy, Check, Calendar, History, GitBranch } from 'lucide-react';
-import type { GitHubRepo, GitHubCommit } from '@/types';
+import { Github, Upload, Wand2, Loader2, FileText, Settings2, Copy, Check, Calendar, History, GitBranch } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { cn } from '@/lib/utils';
+import { useGithubIntegration } from '@/features/analysis/hooks/useGithubIntegration';
+import { useAnalysis } from '@/features/analysis/hooks/useAnalysis';
 
 export default function Home() {
   const { data: session } = useSession();
   const [sourceType, setSourceType] = useState<'github' | 'manual'>('github');
   const [selectionMode, setSelectionMode] = useState<'commit' | 'range'>('commit');
 
-  const [repos, setRepos] = useState<GitHubRepo[]>([]);
-  const [branches, setBranches] = useState<{ name: string }[]>([]);
-  const [commits, setCommits] = useState<GitHubCommit[]>([]);
-
-  const [selectedRepo, setSelectedRepo] = useState<GitHubRepo | null>(null);
-  const [selectedBranch, setSelectedBranch] = useState<string>('');
-  const [selectedCommit, setSelectedCommit] = useState<GitHubCommit | null>(null);
-
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
-
   const [rawDiff, setRawDiff] = useState('');
   const [commitMessage, setCommitMessage] = useState('');
-
   const [promptInstruction, setPromptInstruction] = useState('');
   const [temperature, setTemperature] = useState(0.7);
-
-  const [loadingRepos, setLoadingRepos] = useState(false);
-  const [loadingBranches, setLoadingBranches] = useState(false);
-  const [loadingCommits, setLoadingCommits] = useState(false);
-  const [generating, setGenerating] = useState(false);
-
-  const [generatedMarkdown, setGeneratedMarkdown] = useState('');
   const [copied, setCopied] = useState(false);
-  const [errorMsg, setErrorMsg] = useState('');
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
-    if (session && sourceType === 'github' && repos.length === 0) {
-      fetchRepos();
-    }
-  }, [session, sourceType, repos.length]);
+  // Custom Hooks for logic separation
+  const {
+    repos, branches, commits,
+    selectedRepo, selectedBranch, selectedCommit,
+    loadingRepos, loadingBranches, loadingCommits,
+    errorMsg: githubError,
+    setSelectedCommit,
+    handleRepoChange, handleBranchChange, fetchRepos
+  } = useGithubIntegration();
 
-  const fetchRepos = async () => {
-    setLoadingRepos(true);
-    try {
-      const res = await fetch('/api/repositories');
-      const data = await res.json();
-      if (data.repos) setRepos(data.repos);
-    } catch {
-      setErrorMsg('저장소를 불러오는데 실패했습니다.');
-    } finally {
-      setLoadingRepos(false);
-    }
-  };
+  const {
+    generating,
+    generatedMarkdown,
+    errorMsg: analysisError,
+    handleGenerate
+  } = useAnalysis();
 
-  const handleRepoChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const repoId = e.target.value;
-    const repo = repos.find(r => r.id.toString() === repoId) || null;
-    setSelectedRepo(repo);
-    setSelectedBranch('');
-    setBranches([]);
-    setCommits([]);
-    setSelectedCommit(null);
+  const errorMsg = githubError || analysisError;
 
-    if (!repo) return;
-
-    setLoadingBranches(true);
-    try {
-      const res = await fetch(`/api/github/branches?repo=${encodeURIComponent(repo.full_name)}`);
-      const data = await res.json();
-      const branchList = Array.isArray(data) ? data : [];
-      setBranches(branchList);
-
-      // 기본 브랜치(main/master)가 있으면 자동 선택
-      const defaultBranch = repo.default_branch || (branchList.find((b: { name: string }) => b.name === 'main' || b.name === 'master')?.name) || branchList[0]?.name || '';
-      if (defaultBranch) {
-        setSelectedBranch(defaultBranch);
-        fetchCommits(repo.full_name, defaultBranch);
-      }
-    } catch {
-      setBranches([]);
-      setErrorMsg('브랜치 목록을 불러오는데 실패했습니다.');
-    } finally {
-      setLoadingBranches(false);
-    }
-  };
-
-  const handleBranchChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const branchName = e.target.value;
-    setSelectedBranch(branchName);
-    setSelectedCommit(null);
-    if (selectedRepo && branchName) {
-      fetchCommits(selectedRepo.full_name, branchName);
-    }
-  };
-
-  const fetchCommits = async (repoFullName: string, branchName: string) => {
-    setLoadingCommits(true);
-    try {
-      const params = new URLSearchParams({ repo: repoFullName, sha: branchName, per_page: '30' });
-      const res = await fetch(`/api/github/commits?${params}`);
-      const data = await res.json();
-      setCommits(Array.isArray(data) ? data : []);
-    } catch {
-      setCommits([]);
-      setErrorMsg('커밋 목록을 불러오는데 실패했습니다.');
-    } finally {
-      setLoadingCommits(false);
-    }
+  const onGenerate = () => {
+    handleGenerate({
+      sourceType,
+      selectedRepo,
+      selectedBranch,
+      selectedCommit,
+      selectionMode,
+      startDate,
+      endDate,
+      rawDiff,
+      commitMessage,
+      promptInstruction,
+      temperature
+    });
   };
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -129,59 +72,8 @@ export default function Home() {
     reader.readAsText(file);
   };
 
-  const handleGenerate = async () => {
-    setErrorMsg('');
-    setGeneratedMarkdown('');
-
-    if (sourceType === 'github' && selectionMode === 'range') {
-      if (!startDate || !endDate) {
-        setErrorMsg('시작 날짜와 종료 날짜를 모두 입력해주세요.');
-        return;
-      }
-      const s = new Date(startDate);
-      const e = new Date(endDate);
-      const diffDays = Math.ceil(Math.abs(e.getTime() - s.getTime()) / (1000 * 60 * 60 * 24));
-      if (diffDays > 7) {
-        setErrorMsg('분석 기간은 최대 7일까지 가능합니다.');
-        return;
-      }
-    }
-
-    setGenerating(true);
-    try {
-      const body = {
-        sourceType,
-        repoFullName: selectedRepo?.full_name,
-        branch: selectedBranch,
-        commitSha: selectionMode === 'commit' ? selectedCommit?.sha : undefined,
-        startDate: selectionMode === 'range' ? startDate : undefined,
-        endDate: selectionMode === 'range' ? endDate : undefined,
-        rawDiff,
-        commitMessage: sourceType === 'github' && selectionMode === 'commit' ? selectedCommit?.commit.message : commitMessage,
-        promptInstruction,
-        temperature
-      };
-
-      const res = await fetch('/api/generate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body)
-      });
-
-      const data = await res.json();
-      if (res.ok && data.markdown) {
-        setGeneratedMarkdown(data.markdown);
-      } else {
-        setErrorMsg(data.error || '생성 중 오류가 발생했습니다.');
-      }
-    } catch (err: any) {
-      setErrorMsg(err.message || '네트워크 오류가 발생했습니다.');
-    } finally {
-      setGenerating(false);
-    }
-  };
-
   const copyToClipboard = () => {
+    if (!generatedMarkdown) return;
     navigator.clipboard.writeText(generatedMarkdown);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
@@ -193,7 +85,7 @@ export default function Home() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    const filename = `blog_${new Date().toISOString().split('T')[0]}.md`;
+    const filename = `blog_\${new Date().toISOString().split('T')[0]}.md`;
     a.download = filename;
     document.body.appendChild(a);
     a.click();
@@ -252,15 +144,32 @@ export default function Home() {
                     <>
                       {/* Step 1: Repo Select */}
                       <div>
-                        <label className="text-[10px] font-bold text-outline uppercase tracking-widest mb-2 block">1. 저장소 선택</label>
-                        <select
-                          className="w-full bg-[#131313] border border-outline-variant/20 rounded-xl px-4 py-2.5 text-xs focus:ring-2 focus:ring-primary-container text-[#e5e2e1]"
-                          onChange={handleRepoChange}
-                          value={selectedRepo?.id.toString() || ''}
-                        >
-                          <option value="">저장소를 선택하세요</option>
-                          {repos.map(r => <option key={r.id} value={r.id}>{r.full_name}</option>)}
-                        </select>
+                        <div className="flex justify-between items-center mb-2">
+                          <label className="text-[10px] font-bold text-outline uppercase tracking-widest block">1. 저장소 선택</label>
+                          <button 
+                            onClick={() => fetchRepos(true)}
+                            disabled={loadingRepos}
+                            className="text-[10px] font-bold text-primary-container hover:text-white transition-colors flex items-center gap-1 disabled:opacity-50"
+                          >
+                            <History size={10} className={cn(loadingRepos && "animate-spin")} /> 동기화
+                          </button>
+                        </div>
+                        <div className="relative">
+                          <select
+                            className="w-full bg-[#131313] border border-outline-variant/20 rounded-xl px-4 py-2.5 text-xs focus:ring-2 focus:ring-primary-container text-[#e5e2e1]"
+                            onChange={(e) => handleRepoChange(e.target.value)}
+                            value={selectedRepo?.id.toString() || ''}
+                            disabled={loadingRepos}
+                          >
+                            <option value="">저장소를 선택하세요</option>
+                            {repos.map(r => <option key={r.id} value={r.id}>{r.full_name}</option>)}
+                          </select>
+                          {loadingRepos && (
+                            <div className="absolute right-8 top-1/2 -translate-y-1/2">
+                              <Loader2 size={12} className="animate-spin text-primary" />
+                            </div>
+                          )}
+                        </div>
                       </div>
 
                       {/* Step 2: Branch Select */}
@@ -271,7 +180,7 @@ export default function Home() {
                             <div className="relative">
                               <select
                                 className="w-full bg-[#131313] border border-outline-variant/20 rounded-xl pl-10 pr-4 py-2.5 text-xs focus:ring-2 focus:ring-primary-container text-[#e5e2e1] appearance-none"
-                                onChange={handleBranchChange}
+                                onChange={(e) => handleBranchChange(e.target.value)}
                                 value={selectedBranch || ''}
                                 disabled={loadingBranches}
                               >
@@ -408,7 +317,7 @@ export default function Home() {
               </div>
 
               <button
-                onClick={handleGenerate}
+                onClick={onGenerate}
                 disabled={!isReady || generating}
                 className="w-full mt-2 py-4 bg-gradient-to-r from-primary-container to-[#005bb5] text-white rounded-xl font-headline font-bold uppercase tracking-widest hover:shadow-[0_0_20px_rgba(0,112,243,0.4)] transition-all disabled:opacity-50 flex items-center justify-center gap-2 active:scale-[0.98]"
               >

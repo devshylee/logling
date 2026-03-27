@@ -81,11 +81,11 @@ function calcStreaks(activeSet: Set<string>): { current: number; best: number } 
 }
 
 function getIntensityClass(count: number): string {
-  if (count === 0) return 'bg-[#1c1c1c]';
-  if (count === 1) return 'bg-[#0e4429]';
-  if (count === 2) return 'bg-[#006d32]';
-  if (count === 3) return 'bg-[#26a641]';
-  return 'bg-[#2ff801]'; // 4+
+  if (count === 0) return 'bg-surface-highest/30';
+  if (count === 1) return 'bg-secondary-container/20';
+  if (count === 2) return 'bg-secondary-container/40';
+  if (count === 3) return 'bg-secondary-container/70';
+  return 'bg-secondary-container'; // 4+
 }
 
 function getScoreColor(score: number) {
@@ -130,7 +130,7 @@ export default function ArchivePage() {
         .order('created_at', { ascending: false }),
       supabase
         .from('analyses')
-        .select('id, created_at, xp_awarded, impact_score, ai_result, commit_sha, commit_message, repository_id, user_id, status, completed_at, error_message')
+        .select('*') // Optimized to use all fields as specified in Analysis type
         .eq('user_id', userId)
         .eq('status', 'completed')
         .order('created_at', { ascending: false })

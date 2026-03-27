@@ -12,7 +12,6 @@ import {
 } from 'lucide-react';
 import type { Repository, Analysis, UserProfile, AIResult } from '@/types';
 import { supabase } from '@/lib/supabase';
-import { formatDistanceToNow } from 'date-fns';
 import { cn } from '@/lib/utils';
 
 type RepoWithStats = Repository & {

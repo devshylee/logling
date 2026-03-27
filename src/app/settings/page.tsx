@@ -15,55 +15,13 @@ import { supabase } from '@/lib/supabase';
 import type { UserProfile } from '@/types';
 import { getLevelFromXP, getLevelProgress, XP_PER_LEVEL } from '@/types';
 import { cn } from '@/lib/utils';
+import { Toggle } from '@/components/ui/Toggle';
+import { Toast } from '@/components/ui/Toast';
 
 // ── Tab types ────────────────────────────────────────────────────────────────
 
 type Tab = 'neural' | 'sovereignty';
 
-// ── Toggle component ─────────────────────────────────────────────────────────
-
-function Toggle({ enabled, onChange, id }: { enabled: boolean; onChange: (v: boolean) => void; id: string }) {
-  return (
-    <button
-      id={id}
-      role="switch"
-      aria-checked={enabled}
-      onClick={() => onChange(!enabled)}
-      className={cn(
-        'relative w-11 h-6 rounded-full transition-all duration-300 flex-shrink-0',
-        enabled ? 'bg-primary-container shadow-[0_0_12px_rgba(0,112,243,0.4)]' : 'bg-surface-highest'
-      )}
-    >
-      <span
-        className={cn(
-          'absolute top-1 w-4 h-4 bg-white rounded-full shadow-sm transition-all duration-300',
-          enabled ? 'left-6' : 'left-1'
-        )}
-      />
-    </button>
-  );
-}
-
-// ── Toast component ──────────────────────────────────────────────────────────
-
-function Toast({ message, ok }: { message: string; ok: boolean }) {
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 16 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: 16 }}
-      className={cn(
-        'fixed bottom-8 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2.5 px-5 py-3 rounded-2xl border text-sm font-semibold shadow-2xl backdrop-blur-xl',
-        ok
-          ? 'bg-[#0e4429]/90 border-[#2ff801]/30 text-[#2ff801]'
-          : 'bg-red-950/90 border-red-500/30 text-red-400'
-      )}
-    >
-      {ok ? <CheckCircle2 size={16} /> : <AlertCircle size={16} />}
-      {message}
-    </motion.div>
-  );
-}
 
 // ── Main component ────────────────────────────────────────────────────────────
 

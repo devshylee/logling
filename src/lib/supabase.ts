@@ -29,35 +29,10 @@ export async function getUserProfile(userId: string): Promise<UserProfile | null
   return data as UserProfile;
 }
 
-export async function upsertUserProfile(
-  adminClient: ReturnType<typeof createAdminClient>,
-  profile: Partial<UserProfile> & { id: string }
-): Promise<UserProfile | null> {
-  const { data, error } = await adminClient
-    .from('user_profiles')
-    .upsert(profile, { onConflict: 'id' })
-    .select()
-    .single();
-  if (error) {
-    console.error('[upsertUserProfile]', error);
-    return null;
-  }
-  return data as UserProfile;
-}
-
 // ──────────────────────────────────────────
 // Repository helpers
 // ──────────────────────────────────────────
 
-export async function getUserRepositories(userId: string): Promise<Repository[]> {
-  const { data, error } = await supabase
-    .from('repositories')
-    .select('*')
-    .eq('user_id', userId)
-    .order('created_at', { ascending: false });
-  if (error) return [];
-  return data as Repository[];
-}
 
 export async function upsertRepository(
   adminClient: ReturnType<typeof createAdminClient>,
@@ -74,21 +49,10 @@ export async function upsertRepository(
   }
   return data as Repository;
 }
-
 // ──────────────────────────────────────────
 // Analysis helpers
 // ──────────────────────────────────────────
 
-export async function getUserAnalyses(userId: string, limit = 20): Promise<Analysis[]> {
-  const { data, error } = await supabase
-    .from('analyses')
-    .select('*, repository:repositories(*)')
-    .eq('user_id', userId)
-    .order('created_at', { ascending: false })
-    .limit(limit);
-  if (error) return [];
-  return data as Analysis[];
-}
 
 export async function createAnalysisJob(
   adminClient: ReturnType<typeof createAdminClient>,
@@ -127,20 +91,10 @@ export async function updateAnalysis(
     .eq('id', id);
   if (error) console.error('[updateAnalysis]', error);
 }
-
 // ──────────────────────────────────────────
 // Tech Skill helpers
 // ──────────────────────────────────────────
 
-export async function getUserTechSkills(userId: string): Promise<TechSkill[]> {
-  const { data, error } = await supabase
-    .from('tech_skills')
-    .select('*')
-    .eq('user_id', userId)
-    .order('xp', { ascending: false });
-  if (error) return [];
-  return data as TechSkill[];
-}
 
 export async function upsertTechSkill(
   adminClient: ReturnType<typeof createAdminClient>,

@@ -7,9 +7,9 @@ import { motion } from 'motion/react';
 import { Github, ShieldCheck, Zap, Code2, BarChart3 } from 'lucide-react';
 
 const FEATURES = [
-  { icon: Code2, title: 'Git Diff Analysis', desc: 'Every commit analyzed by Gemini AI for impact and tech stack.' },
-  { icon: BarChart3, title: 'XP & Leveling', desc: 'Earn experience points and level up your skill tree with each push.' },
-  { icon: Zap, title: 'Blog Auto-Draft', desc: 'Turn your commits into polished technical blog posts automatically.' },
+  { icon: Code2, title: 'Git Diff 분석', desc: '모든 커밋을 Gemini AI가 분석하여 영향도와 기술 스택을 파악합니다.' },
+  { icon: BarChart3, title: 'XP 및 레벨링', desc: '푸시할 때마다 경험치를 획득하고 기술 트리를 성장시킵니다.' },
+  { icon: Zap, title: '블로그 초안 자동 생성', desc: '커밋 내역을 다듬어진 기술 블로그 포스트로 자동 변환해 드립니다.' },
 ];
 
 export default function LoginPage() {
@@ -49,10 +49,10 @@ export default function LoginPage() {
         className="w-full max-w-md bg-surface-low border border-outline-variant/20 rounded-3xl p-10 text-center shadow-2xl backdrop-blur-sm"
       >
         <h2 className="font-headline text-2xl font-bold text-[#e5e2e1] mb-2">
-          Level Up Your Dev Career
+           개발자 커리어를 레벨업하세요
         </h2>
         <p className="text-outline mb-8 leading-relaxed">
-          Connect your GitHub account and let AI analyze your commits, grow your skill tree, and auto-generate technical blog drafts.
+          GitHub 계정을 연동하면 AI가 커밋을 분석하여 기술 스택을 성장시키고, 전문적인 기술 블로그 초안을 자동으로 작성해 줍니다.
         </p>
 
         <button
@@ -62,12 +62,12 @@ export default function LoginPage() {
           id="github-sign-in-btn"
         >
           <Github size={22} />
-          {status === 'loading' ? 'Connecting...' : 'Continue with GitHub'}
+          {status === 'loading' ? '연결 중...' : 'GitHub으로 계속하기'}
         </button>
 
         <div className="flex items-center justify-center gap-2 mt-4">
           <ShieldCheck size={14} className="text-[#79ff5b]" />
-          <p className="text-[11px] text-outline font-mono">Read-only access • AES-256 encrypted • No code stored</p>
+          <p className="text-[11px] text-outline font-mono">읽기 전용 권한 • AES-256 암호화 • 코드 미저장</p>
         </div>
       </motion.div>
 

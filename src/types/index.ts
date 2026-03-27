@@ -1,6 +1,5 @@
 // src/types/index.ts — Logling shared TypeScript types
 
-export type MascotPersonality = 'witty' | 'professional' | 'aggressive';
 export type AnalysisStatus = 'pending' | 'processing' | 'completed' | 'failed';
 
 export type UserProfile = {
@@ -10,7 +9,6 @@ export type UserProfile = {
   avatar_url: string;
   level: number;
   xp: number;
-  mascot_personality: MascotPersonality;
   public_profile: boolean;
   telemetry_sharing: boolean;
   created_at: string;

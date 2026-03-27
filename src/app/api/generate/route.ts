@@ -2,6 +2,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import { GoogleGenAI } from '@google/genai';
 import { fetchCommitDiff, fetchCompareDiff } from '@/features/analysis/githubFetcher';
+import { maskSensitiveDiff } from '@/features/analysis/diffMasker';
 
 export async function POST(req: Request) {
   const session = await getServerSession(authOptions);
@@ -108,6 +109,9 @@ export async function POST(req: Request) {
     - 첫 인사말, 부연 설명, 맺음 인사를 모두 금지하며 오직 마크다운(Markdown) 본문 내용만 출력하세요.
     `;
 
+    // Mask sensitive data before sending to AI (Security Protocol)
+    const { masked: maskedDiff } = maskSensitiveDiff(finalDiff);
+ 
     const userPrompt =
       `
     아래 제공된 [컨텍스트]와 [Git Diff]를 바탕으로, 기술적 깊이가 느껴지는 블로그 포스트를 작성해 주세요.
@@ -387,7 +391,7 @@ export async function POST(req: Request) {
 
     [Git Diff 내역]
     \`\`\`diff
-    ${finalDiff}
+    ${maskedDiff}
     \`\`\`
 
     [특별 요청사항]

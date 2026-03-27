@@ -54,8 +54,6 @@ export async function processAnalysisJob(params: {
   const { analysisId, userId, userProfile, diff, commitMessage, analyzeCommit } = params;
   const admin = createAdminClient();
 
-  // Mark as processing
-  await updateAnalysis(admin, analysisId, { status: 'processing' });
 
   try {
     const result = await analyzeCommit(diff, commitMessage);

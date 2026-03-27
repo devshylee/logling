@@ -18,6 +18,13 @@ const EXCLUDED_FILE_PATTERNS = [
   /build\//,
   /\.next\//,
   /node_modules\//,
+  /\.map$/i,
+  /\.wasm$/i,
+  /\.exe$/i,
+  /\.dll$/i,
+  /\.bin$/i,
+  /\.pyc$/i,
+  /config\.json$/i,
 ];
 
 function createGithubHeaders(accessToken: string) {
