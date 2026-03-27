@@ -93,18 +93,3 @@ export type GitHubProfile = {
   name: string | null;
   avatar_url: string;
 };
-
-// XP constants
-export const XP_PER_LEVEL = 10_000;
-
-export function getLevelFromXP(xp: number): number {
-  return Math.floor(xp / XP_PER_LEVEL) + 1;
-}
-
-export function getLevelProgress(xp: number): number {
-  return (xp % XP_PER_LEVEL) / XP_PER_LEVEL;
-}
-
-export function getXpForImpact(impactScore: number): number {
-  return Math.round(impactScore * 10);
-}

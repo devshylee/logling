@@ -10,8 +10,8 @@ const DAILY_LIMIT = 50;
 
 export async function POST(req: Request) {
   const session = await getServerSession(authOptions);
-  if (!session?.user?.email) {
-    return Response.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!session?.user?.id) {
+    return Response.json({ error: '인증 정보가 부족합니다. 다시 로그인해주세요.' }, { status: 401 });
   }
 
   let body: {

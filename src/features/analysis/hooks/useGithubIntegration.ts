@@ -22,7 +22,7 @@ export function useGithubIntegration() {
   const fetchRepos = async (force = false) => {
     setLoadingRepos(true);
     try {
-      const res = await fetch(`/api/repositories\${force ? '?force=true' : ''}`);
+      const res = await fetch(`/api/repositories${force ? '?force=true' : ''}`);
       const data = await res.json();
       if (data.repos) setRepos(data.repos);
     } catch {
@@ -36,7 +36,7 @@ export function useGithubIntegration() {
     setLoadingCommits(true);
     try {
       const params = new URLSearchParams({ repo: repoFullName, sha: branchName, per_page: '30' });
-      const res = await fetch(`/api/github/commits?\${params}`);
+      const res = await fetch(`/api/github/commits?${params}`);
       const data = await res.json();
       setCommits(Array.isArray(data) ? data : []);
     } catch {
@@ -59,7 +59,7 @@ export function useGithubIntegration() {
 
     setLoadingBranches(true);
     try {
-      const res = await fetch(`/api/github/branches?repo=\${encodeURIComponent(repo.full_name)}`);
+      const res = await fetch(`/api/github/branches?repo=${encodeURIComponent(repo.full_name)}`);
       const data = await res.json();
       const branchList = Array.isArray(data) ? data : [];
       setBranches(branchList);

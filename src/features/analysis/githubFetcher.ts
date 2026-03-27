@@ -157,8 +157,8 @@ function filterAndTruncateDiff(rawDiff: string): string {
   const sections = rawDiff.split(/(?=^diff --git )/m);
 
   const filteredSections = sections.filter((section) => {
-    // Extract filename from diff header line
-    const match = section.match(/^diff --git a\/(.*?) b\//m);
+    // Extract filename from diff header line (handles paths with spaces and multiple variants)
+    const match = section.match(/^diff --git [ab]\/(.*?) [ab]\/(.*?)$/m);
     if (!match) return false;
     const filename = match[1];
     return !EXCLUDED_FILE_PATTERNS.some((pattern) => pattern.test(filename));

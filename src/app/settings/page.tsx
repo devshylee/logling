@@ -13,7 +13,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import type { UserProfile } from '@/types';
-import { getLevelFromXP, getLevelProgress, XP_PER_LEVEL } from '@/types';
+import { getLevelFromXP, getLevelProgress, XP_PER_LEVEL } from '@/features/leveling/xpCalculator';
 import { cn } from '@/lib/utils';
 import { Toggle } from '@/components/ui/Toggle';
 import { Toast } from '@/components/ui/Toast';
@@ -171,7 +171,7 @@ export default function SettingsPage() {
   // ── Render ────────────────────────────────────────────────────────────────
 
   return (
-    <div className="flex min-h-screen bg-[#0a0a0a]">
+    <div className="flex min-h-screen bg-surface">
       <Sidebar activeId="settings" profile={profile} />
 
       <main className="flex-1 ml-64 overflow-y-auto">

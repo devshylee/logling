@@ -69,8 +69,9 @@ export function useAnalysis() {
       } else {
         setErrorMsg(data.error || '생성 중 오류가 발생했습니다.');
       }
-    } catch (err: any) {
-      setErrorMsg(err.message || '네트워크 오류가 발생했습니다.');
+    } catch (err) {
+      const message = err instanceof Error ? err.message : '네트워크 오류가 발생했습니다.';
+      setErrorMsg(message);
     } finally {
       setGenerating(false);
     }

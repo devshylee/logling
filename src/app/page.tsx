@@ -85,7 +85,7 @@ export default function Home() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    const filename = `blog_\${new Date().toISOString().split('T')[0]}.md`;
+    const filename = `blog_${new Date().toISOString().split('T')[0]}.md`;
     a.download = filename;
     document.body.appendChild(a);
     a.click();

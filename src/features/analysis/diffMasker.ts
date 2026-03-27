@@ -4,7 +4,13 @@
  * before sending to Gemini, as required by the Logling Security Protocol.
  */
 
-const MASKING_RULES: Array<{ name: string; pattern: RegExp; replacement: string }> = [
+type MaskingRule = {
+  name: string;
+  pattern: RegExp;
+  replacement: string | ((match: string, ...args: any[]) => string);
+};
+
+const MASKING_RULES: MaskingRule[] = [
   // API Keys & Secrets (generic patterns)
   {
     name: 'generic_secret',
@@ -23,7 +29,7 @@ const MASKING_RULES: Array<{ name: string; pattern: RegExp; replacement: string 
     replacement: (match: string) =>
       // Only mask if suspiciously high entropy (looks like base64 credential)
       hasHighEntropy(match, 4.5) ? '[REDACTED:AWS_SECRET]' : match,
-  } as any,
+  },
   // GitHub tokens
   {
     name: 'github_token',
@@ -48,10 +54,10 @@ const MASKING_RULES: Array<{ name: string; pattern: RegExp; replacement: string 
     pattern: /-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----[\s\S]*?-----END (?:RSA |EC |OPENSSH )?PRIVATE KEY-----/g,
     replacement: '[REDACTED:PRIVATE_KEY]',
   },
-  // .env style assignments (KEY=value)
+  // .env style assignments (KEY=value) - handle optional git diff prefixes (+/-)
   {
     name: 'env_assignment',
-    pattern: /^([A-Z_]+(?:KEY|SECRET|PASSWORD|PASS|TOKEN|AUTH|CREDENTIAL))\s*=\s*(.+)$/gm,
+    pattern: /^[+-]?\s*([A-Z_]+(?:KEY|SECRET|PASSWORD|PASS|TOKEN|AUTH|CREDENTIAL))\s*=\s*(.+)$/gm,
     replacement: '$1=[REDACTED]',
   },
   // Email addresses (PII)
@@ -77,7 +83,7 @@ const MASKING_RULES: Array<{ name: string; pattern: RegExp; replacement: string 
     name: 'localhost_ip',
     pattern: /(?:host|server|endpoint|url|address)\s*[:=]\s*["']?((?:\d{1,3}\.){3}\d{1,3})["']?/gi,
     replacement: (match: string, ip: string) => match.replace(ip, '[MASKED_DATA:IP]'),
-  } as any,
+  },
 ];
 
 /**
@@ -102,21 +108,20 @@ function hasHighEntropy(str: string, threshold: number): boolean {
  */
 export function maskSensitiveDiff(diff: string): { masked: string; redactionCount: number } {
   let masked = diff;
-  let redactionCount = 0;
+  let totalRedactions = 0;
 
   for (const rule of MASKING_RULES) {
-    const before = masked.length;
-    if (typeof rule.replacement === 'string') {
-      masked = masked.replace(rule.pattern, rule.replacement);
-    } else {
-      masked = masked.replace(rule.pattern, rule.replacement as any);
-    }
-    // Rough count of redactions
-    if (masked.length !== before || masked.includes('[REDACTED') || masked.includes('[MASKED_DATA')) {
-      const matches = diff.match(rule.pattern);
-      if (matches) redactionCount += matches.length;
-    }
+    const replacement = rule.replacement;
+    
+    // Use replace with a callback to count actual replacements
+    masked = masked.replace(rule.pattern, (...args) => {
+      totalRedactions++;
+      if (typeof replacement === 'function') {
+        return replacement(...args);
+      }
+      return replacement;
+    });
   }
 
-  return { masked, redactionCount };
+  return { masked, redactionCount: totalRedactions };
 }
