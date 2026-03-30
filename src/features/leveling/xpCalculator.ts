@@ -73,22 +73,19 @@ export async function processAnalysisJob(params: {
     const result = await analyzeCommit(diff, commitMessage);
 
     if (result.errorCode) {
-      // It's a failure (e.g. GEMINI_ERROR or EMPTY_DIFF)
       await updateAnalysis(admin, analysisId, {
         status: 'failed',
         error_message: result.errorCode,
-        ai_result: result as any, // Save the fallback message for transparency
+        ai_result: result as any, 
         xp_awarded: 0,
       });
       return;
     }
 
     const xpAwarded = getXpForImpact(result.impactScore);
-
-    // Award XP (in background, non-blocking for the DB update)
+   
     await awardXP(userId, userProfile, result.impactScore, result.techStack ?? []);
 
-    // Mark as completed
     await updateAnalysis(admin, analysisId, {
       status: 'completed',
       impact_score: result.impactScore,
